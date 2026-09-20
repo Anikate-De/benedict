@@ -168,7 +168,11 @@ class Inserter:
         if shutil.which("wl-paste") is None:
             return None
         try:
-            proc = subprocess.run(["wl-paste", "-n"], capture_output=True, timeout=5)
+            proc = subprocess.run(
+                ["wl-paste", "-n", "--type", "text"],
+                capture_output=True,
+                timeout=5,
+            )
         except (OSError, subprocess.SubprocessError):
             return None
         return proc.stdout.decode(errors="replace") if proc.returncode == 0 else None
