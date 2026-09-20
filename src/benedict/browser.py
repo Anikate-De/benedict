@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import os
 import shutil
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -92,7 +93,9 @@ class BrowserWorker:
     def _start_browser(self) -> None:
         if not Path(self.cfg.chrome).exists() and shutil.which("google-chrome") is None:
             raise BrowserError(f"chrome not found at {self.cfg.chrome}")
-        Path(self.cfg.profile).mkdir(parents=True, exist_ok=True)
+        profile = Path(self.cfg.profile).resolve()
+        profile.mkdir(parents=True, exist_ok=True)
+        self._clear_singleton(profile)
         env = os.environ.copy()
         env["DISPLAY"] = self.cfg.display
         if self.cfg.mic != "default":
@@ -100,22 +103,53 @@ class BrowserWorker:
         try:
             self._playwright = sync_playwright().start()
             self._context = self._playwright.chromium.launch_persistent_context(
-                self.cfg.profile,
+                str(profile),
                 executable_path=self.cfg.chrome,
                 headless=False,
                 env=env,
                 args=CHROME_ARGS,
                 viewport={"width": 1280, "height": 860},
+                timeout=45000,
             )
         except Exception as exc:
             self._shutdown_browser()
+            self._kill_leftover_chrome(profile)
             raise BrowserError(f"chrome failed to start: {exc}") from exc
+        self._context.set_default_timeout(15000)
+        self._context.set_default_navigation_timeout(30000)
         with contextlib.suppress(Exception):
             self._context.grant_permissions(["microphone"], origin="https://chatgpt.com")
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
         if "chatgpt.com" not in self._page.url:
             self._page.goto(self.cfg.start_url, wait_until="domcontentloaded", timeout=30000)
         self._chat = ChatGPT(self._page)
+
+    def _profile_processes(self, profile: Path) -> list[int]:
+        marker = f"--user-data-dir={profile}"
+        found: list[int] = []
+        for proc in Path("/proc").iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                raw = (proc / "cmdline").read_bytes()
+                cmdline = raw.replace(b"\0", b" ").decode(errors="replace")
+            except OSError:
+                continue
+            if marker in cmdline and "chrome" in cmdline.lower():
+                found.append(int(proc.name))
+        return found
+
+    def _clear_singleton(self, profile: Path) -> None:
+        if self._profile_processes(profile):
+            raise BrowserError("another Chrome is using the Benedict profile; close it first")
+        for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+            with contextlib.suppress(OSError):
+                (profile / name).unlink()
+
+    def _kill_leftover_chrome(self, profile: Path) -> None:
+        for pid in self._profile_processes(profile):
+            with contextlib.suppress(OSError, ProcessLookupError):
+                os.kill(pid, signal.SIGTERM)
 
     def _shutdown_browser(self) -> None:
         if self._context is not None:
@@ -126,6 +160,8 @@ class BrowserWorker:
             with contextlib.suppress(Exception):
                 self._playwright.stop()
             self._playwright = None
+        if self.cfg.profile:
+            self._kill_leftover_chrome(Path(self.cfg.profile).resolve())
         self._page = None
         self._chat = None
 
