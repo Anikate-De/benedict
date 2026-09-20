@@ -144,19 +144,72 @@ th {
 }
 
 figure {
-  margin: 1.5rem 0;
+  margin: 2rem 0;
 }
 
 figure img {
   display: block;
   width: 100%;
   height: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
 figcaption {
   color: var(--muted);
   font-size: 12.5px;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.flow {
+  color: var(--muted);
+  margin: 1.5rem 0;
+  letter-spacing: 0.02em;
+}
+
+.flow b {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  counter-reset: step;
+}
+
+.steps li {
+  position: relative;
+  padding-left: 2.25rem;
+  margin: 1rem 0;
+}
+
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  width: 1.5rem;
+  height: 1.5rem;
+  text-align: center;
+  line-height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.steps strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.note {
+  border-left: 2px solid var(--accent);
+  padding-left: 1rem;
+  color: var(--muted);
 }
 
 footer {

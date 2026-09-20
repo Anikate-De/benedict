@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>benedict — push-to-talk ChatGPT dictation for Linux</title>
+    <title>benedict — push-to-talk dictation for Linux</title>
     <meta
       name="description"
-      content="Push-to-talk dictation for Linux using ChatGPT's web dictation as the speech-to-text engine."
+      content="Hold a key, speak, release. ChatGPT-quality dictation lands at your cursor, anywhere on Linux."
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -14,184 +14,163 @@
     <main class="wrap">
       <header>
         <p class="prompt">benedict</p>
-        <h1>Push-to-talk dictation for Linux</h1>
+        <h1>Talk instead of typing. Anywhere on Linux.</h1>
         <p class="tagline">
-          ChatGPT's web dictation as the speech-to-text engine, at your cursor,
-          from a single hotkey.
+          Hold a key, say what you mean, let go. The words appear at your
+          cursor — your editor, your terminal, any text box. The transcription
+          comes from ChatGPT's dictation, which is about as good as
+          speech-to-text gets.
         </p>
         <p class="links">
           <a href="https://github.com/Anikate-De/benedict">github</a
           ><span>/</span
-          ><a href="https://github.com/Anikate-De/benedict#readme">readme</a>
+          ><a
+            href="https://github.com/Anikate-De/benedict#install"
+            >install</a
+          >
         </p>
       </header>
 
       <hr />
 
-      <section id="what">
-        <h2>What it is</h2>
+      <section id="why">
+        <h2>Why this exists</h2>
         <p>
-          Hold <code>RightCtrl+Space</code> anywhere, speak, release. Benedict
-          drives a hidden Chrome instance (Xvfb) that is logged into
-          <code>chatgpt.com</code>, starts ChatGPT's dictation, and when you
-          release it pastes the transcript at your cursor. A notification shows
-          the state and the active microphone.
+          ChatGPT's dictation is genuinely excellent. It punctuates. It keeps
+          the sentence together when you stumble. It handles the names and
+          jargon you actually use. And if you already pay for ChatGPT, it costs
+          nothing extra.
         </p>
         <p>
-          ChatGPT's web dictation is superb and, under a normal subscription,
-          costs nothing extra. But using it meant opening a browser tab,
-          dictating, copying the text, and pasting it back into whatever you
-          were working on. Benedict removes that friction: hold a hotkey
-          anywhere and the transcript lands at your cursor. No API credits, just
-          the ChatGPT session you already pay for.
+          The problem was never the transcription. It was the ritual around it:
+          open the browser, find the tab, click the microphone, speak, copy the
+          text, switch back to what you were doing, paste. Seven steps between
+          a thought and the page.
         </p>
+        <p class="note">Benedict is those seven steps, reduced to one key.</p>
+      </section>
+
+      <section id="feel">
+        <h2>What it feels like</h2>
+        <ol class="steps">
+          <li>
+            <strong>Hold <code>RightCtrl+Space</code>.</strong> A quiet
+            notification slides in telling you the microphone is live and
+            which one it is.
+          </li>
+          <li>
+            <strong>Speak.</strong> ChatGPT transcribes as you go. A small
+            floating pill at the bottom of the screen shows the words forming
+            in real time, so you can trust it heard you.
+          </li>
+          <li>
+            <strong>Let go.</strong> The transcript is pasted wherever your
+            cursor was waiting, and your previous clipboard is put back the way
+            it was.
+          </li>
+        </ol>
         <p>
-          Nothing is ever sent as a chat message; the dictation text is read
-          from the composer and the composer is cleared after each use.
-          Transcripts are stored in
-          <code>~/.local/state/benedict/last.txt</code> and
-          <code>history.jsonl</code>.
+          That is the whole interaction. There is no window to manage and no
+          app to switch to — Benedict keeps a hidden browser signed in on your
+          behalf so the tab is always warm.
+        </p>
+        <p class="flow">
+          <b>press</b> &rarr; <b>speak</b> &rarr; <b>release</b> &rarr;
+          <b>pasted</b>
         </p>
       </section>
 
       <section id="how">
-        <h2>How it works</h2>
-        <pre class="diagram">RightCtrl+Space (hold)
-      │  keyd maps the chord to F24 and swallows it
-      ▼
-benedictd (systemd --user)
-  ├── notifications + sound cues       (notify-send, pw-play)
-  ├── Xvfb :99 ─ Chrome ─ ChatGPT web  (Playwright, dedicated profile)
-  └── wl-copy + ydotool paste          (Ctrl+V, or Ctrl+Shift+V in terminals)</pre>
+        <h2>How it works, roughly</h2>
         <p>
-          A small GNOME Shell extension (<code>benedict-focus@benedict</code>)
-          publishes the focused window class to
-          <code>$XDG_RUNTIME_DIR/benedict-focus</code> so Benedict can choose
-          <code>Ctrl+V</code> versus the terminal paste combo, and renders a
-          floating status pill (bottom center) with live state, the active
-          microphone, and the streaming transcript. If the extension is
-          unavailable, it falls back to <code>Shift+Insert</code> and desktop
-          notifications.
+          A single Chrome instance runs out of sight, dedicated to dictation
+          and signed into your account. When you hold the key, Benedict asks
+          ChatGPT to start listening. When you release, it reads the finished
+          transcript and types it into the window you were already using —
+          picking the right paste shortcut for terminals and editors on its
+          own.
+        </p>
+        <p>
+          Nothing you dictate is ever sent as a chat message, and the composer
+          is cleared after every use. Audio only ever goes where ChatGPT's
+          dictation needs it; your transcripts stay on your machine.
         </p>
       </section>
 
-      <section id="demo">
-        <h2>Demo</h2>
+      <section id="action">
+        <h2>In action</h2>
         <p>
-          The full loop, from key press to pasted text. Mockups below follow the
-          real on-screen output.
+          A few glimpses of the loop while it runs. These are faithful mockups
+          of the on-screen output, not stock illustrations.
         </p>
 
         <figure>
           <img
-            src="assets/demo-notification.svg"
-            alt="Desktop notification reading Benedict Listening with the active microphone"
+            src="assets/shot-desktop.png"
+            alt="Desktop while dictating: a terminal window, a Benedict listening notification in the corner, and the status pill streaming a transcript"
           />
           <figcaption>
-            On press: a notification shows the state and the active microphone.
+            Mid-sentence. The terminal stays where it is, the notification
+            reports the state and microphone, and the pill streams the
+            transcript as it forms.
           </figcaption>
         </figure>
 
         <figure>
           <img
-            src="assets/demo-pill.svg"
-            alt="GNOME status pill showing live state and streaming transcript"
+            src="assets/shot-pill.png"
+            alt="Close-up of the GNOME status pill showing the streaming transcript"
           />
           <figcaption>
-            While speaking: the status pill streams the transcript as ChatGPT
-            recognizes it.
+            The pill up close. Live state, the active microphone, and the words
+            arriving in order.
           </figcaption>
         </figure>
 
         <figure>
           <img
-            src="assets/demo-doctor.svg"
-            alt="Terminal output of benedict doctor"
+            src="assets/shot-paste.png"
+            alt="Side by side terminal prompts labeled before and after, the after containing the dictated sentence"
           />
           <figcaption>
-            <code>benedict doctor</code> verifies every moving part.
+            On release, the transcript is inserted at the cursor exactly as if
+            you had typed it.
           </figcaption>
         </figure>
 
         <figure>
           <img
-            src="assets/demo-paste.svg"
-            alt="Terminal showing the transcript pasted at the cursor after release"
+            src="assets/shot-doctor.png"
+            alt="Terminal output of benedict doctor showing all nine checks passing"
           />
           <figcaption>
-            On release: the transcript is pasted at the cursor, wherever you
-            were.
+            <code>benedict doctor</code> checks every moving part, so when
+            something breaks you find out in one command.
           </figcaption>
         </figure>
       </section>
 
       <section id="install">
-        <h2>Walkthrough</h2>
-        <p>Requirements: Ubuntu GNOME on Wayland (GNOME 4x/5x) with PipeWire, Google Chrome, and a ChatGPT account.</p>
+        <h2>Getting started</h2>
+        <p>
+          You need Ubuntu on GNOME Wayland with PipeWire, Google Chrome, and a
+          ChatGPT account. Then three commands:
+        </p>
         <pre><span class="prompt">git clone https://github.com/Anikate-De/benedict ~/dev/benedict</span>
 cd ~/dev/benedict
 sudo ./scripts/setup.sh</pre>
         <p>
-          The script installs <code>xvfb</code>, <code>keyd</code>,
-          <code>wl-clipboard</code>, <code>libnotify-bin</code>, installs the
-          keyd chord config, grants live input access via udev
-          <code>uaccess</code> ACLs, and installs the <code>ydotoold</code> and
-          <code>benedict</code> user services.
+          Sign in once — importing the session from the browser you already use
+          is the quickest path — then start the service:
         </p>
-        <p>Then:</p>
-        <pre><span class="prompt">benedict doctor</span>                <span class="c"># verify everything</span>
-<span class="prompt">benedict login --import</span>        <span class="c"># copy your ChatGPT session (recommended)</span>
-<span class="prompt">systemctl --user enable --now ydotoold benedict</span>
-<span class="prompt">benedict test-hotkey</span>           <span class="c"># hold RightCtrl+Space, expect press/release</span></pre>
+        <pre><span class="prompt">benedict login --import</span>
+<span class="prompt">systemctl --user enable --now ydotoold benedict</span></pre>
         <p>
-          No re-login is required. The GNOME focus extension loads on your next
-          login; until then paste uses the <code>Shift+Insert</code> fallback.
-        </p>
-      </section>
-
-      <section id="usage">
-        <h2>Usage</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Action</th>
-              <th>Result</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Hold <code>RightCtrl+Space</code>, speak, release</td>
-              <td>Transcript is pasted at the cursor</td>
-            </tr>
-            <tr>
-              <td><code>benedict doctor</code></td>
-              <td>Diagnose missing pieces</td>
-            </tr>
-            <tr>
-              <td><code>benedict status</code></td>
-              <td>Print the daemon's current state as JSON</td>
-            </tr>
-            <tr>
-              <td><code>benedict probe</code></td>
-              <td>Dump ChatGPT page controls (when OpenAI changes the UI)</td>
-            </tr>
-            <tr>
-              <td><code>benedict last</code></td>
-              <td>Print the last transcript</td>
-            </tr>
-            <tr>
-              <td><code>journalctl --user -u benedict -f</code></td>
-              <td>Follow logs</td>
-            </tr>
-          </tbody>
-        </table>
-        <p>
-          Configuration lives in
-          <code>~/.config/benedict/config.toml</code>; see the
-          <a href="https://github.com/Anikate-De/benedict#configuration"
-            >readme</a
-          >
-          for all keys.
+          Run <code>benedict doctor</code> if anything feels off, and
+          <code>benedict --help</code> to see the rest. The
+          <a href="https://github.com/Anikate-De/benedict#readme">README</a>
+          has the full configuration reference, uninstall steps, and a
+          troubleshooting section.
         </p>
       </section>
 
@@ -205,14 +184,16 @@ sudo ./scripts/setup.sh</pre>
 
       <footer>
         <p>
-          Automates your own logged-in ChatGPT session for personal use. Not
-          affiliated with OpenAI. May break when the web UI or usage limits
-          change.
+          Benedict automates your own signed-in ChatGPT session for personal
+          use. It is not affiliated with OpenAI, and it may break when the web
+          UI or usage limits change.
         </p>
         <p>
           <a href="https://github.com/Anikate-De/benedict">source</a>
           <span>/</span>
           <a href="https://github.com/Anikate-De/benedict#readme">readme</a>
+          <span>/</span>
+          <a href="https://anikate-de.github.io/benedict/">site</a>
         </p>
       </footer>
     </main>

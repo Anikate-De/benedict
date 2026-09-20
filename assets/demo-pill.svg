@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="620" height="104" viewBox="0 0 620 104" role="img" aria-label="GNOME status pill with live state and streaming transcript">
-  <rect width="620" height="104" fill="#0b0b0b"/>
-  <rect x="30" y="20" width="560" height="64" rx="20" fill="#161616" stroke="#2e2e2e"/>
-  <circle cx="56" cy="42" r="5" fill="#7ee787"/>
-  <text x="72" y="47" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#7ee787">Listening</text>
-  <text x="566" y="46" text-anchor="end" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#6f6f6f">Built-in Audio Analog Stereo</text>
-  <text x="56" y="73" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="13" fill="#c8c8c8">the quick brown fox jumps over the lazy</text>
-  <rect x="374" y="62" width="8" height="14" fill="#7ee787"/>
-</svg>
