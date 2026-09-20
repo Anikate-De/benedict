@@ -13,11 +13,9 @@ import time
 from pathlib import Path
 
 from benedict import __version__, status
-from benedict.audio import default_source
-from benedict.config import CONFIG_PATH, STATE_DIR, load
+from benedict.config import CONFIG_PATH, DEFAULT_TOML, PILL_POSITIONS, STATE_DIR, load
 from benedict.hotkey import HotkeyError
 from benedict.insert import read_last
-from benedict.status import FOCUS_FILE
 
 
 def _setup_logging() -> None:
@@ -232,97 +230,96 @@ def cmd_test_hotkey(args: argparse.Namespace) -> int:
     return 0
 
 
-def _service_active(name: str) -> bool:
-    scopes = [["systemctl", "is-active", name]]
-    if name == "ydotoold":
-        scopes = [["systemctl", "--user", "is-active", name]]
-    for cmd in scopes:
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if proc.stdout.strip() == "active":
-            return True
-    return False
+def _use_color(disabled: bool) -> bool:
+    return bool(sys.stdout.isatty()) and not disabled and not os.environ.get("NO_COLOR")
 
 
-def _ydotoold_socket() -> bool:
-    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
-    return bool(runtime) and Path(runtime, ".ydotool_socket").exists()
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from benedict import doctor
+
+    checks = doctor.run(load())
+    color = _use_color(args.no_color)
+    width = shutil.get_terminal_size().columns if color else None
+    print(doctor.render(checks, color=color, width=width))
+    return 0 if all(check.ok for check in checks) else 1
 
 
-def _keyd_chord(key: str) -> bool:
-    try:
-        return f"= {key}" in Path("/etc/keyd/default.conf").read_text()
-    except OSError:
-        return False
-
-
-def _can_read_keyboard() -> bool:
-    try:
-        from evdev import InputDevice, ecodes, list_devices
-
-        for path in list_devices():
-            try:
-                device = InputDevice(path)
-            except (PermissionError, OSError):
-                continue
-            keys = device.capabilities(absinfo=False).get(ecodes.EV_KEY, [])
-            if keys:
-                device.close()
-                return True
-    except Exception:
-        return False
-    return False
-
-
-def cmd_doctor(_args: argparse.Namespace) -> int:
+def cmd_config(args: argparse.Namespace) -> int:
+    if args.edit:
+        editor = os.environ.get("EDITOR")
+        if not editor:
+            editor = next((e for e in ("nano", "vi") if shutil.which(e)), None)
+        if not editor:
+            print("set $EDITOR to edit the config", file=sys.stderr)
+            return 1
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if not CONFIG_PATH.exists():
+            CONFIG_PATH.write_text(DEFAULT_TOML)
+        return subprocess.call([*editor.split(), str(CONFIG_PATH)])
     cfg = load()
-    checks: list[tuple[str, bool, str]] = []
+    rows = [
+        ("hotkey.key", cfg.hotkey.key),
+        ("hotkey.hint", cfg.hotkey.hint),
+        ("hotkey.max_duration_sec", cfg.hotkey.max_duration_sec),
+        ("browser.chrome", cfg.browser.chrome),
+        ("browser.profile", cfg.browser.profile),
+        ("browser.display", cfg.browser.display),
+        ("browser.idle_shutdown_minutes", cfg.browser.idle_shutdown_minutes),
+        ("browser.prewarm", cfg.browser.prewarm),
+        ("browser.mic", cfg.browser.mic),
+        ("insert.method", cfg.insert.method),
+        ("insert.paste_combo", cfg.insert.paste_combo),
+        ("insert.terminal_combo", cfg.insert.terminal_combo),
+        ("insert.universal_combo", cfg.insert.universal_combo),
+        ("insert.newline", cfg.insert.newline),
+        ("insert.restore_clipboard", cfg.insert.restore_clipboard),
+        ("ui.notifications", cfg.ui.notifications),
+        ("ui.sounds", cfg.ui.sounds),
+        ("ui.pill", cfg.ui.pill),
+        ("ui.pill_position", cfg.ui.pill_position),
+        ("ui.pill_margin", cfg.ui.pill_margin),
+        ("ui.notify_while_pill", cfg.ui.notify_while_pill),
+    ]
+    width = max(len(key) for key, _ in rows)
+    suffix = "" if CONFIG_PATH.exists() else " (not created yet)"
+    print(f"# {CONFIG_PATH}{suffix}")
+    for key, value in rows:
+        print(f"{key:<{width}}  {value}")
+    return 0
 
-    def check(name: str, ok: bool, hint: str = "") -> None:
-        checks.append((name, bool(ok), hint))
 
-    check("chrome", Path(cfg.browser.chrome).exists(), f"{cfg.browser.chrome} missing")
-    check("Xvfb", shutil.which("Xvfb") is not None, "run scripts/setup.sh")
-    check(
-        "wl-copy/wl-paste",
-        shutil.which("wl-copy") and shutil.which("wl-paste"),
-        "apt install wl-clipboard",
-    )
-    check("notify-send", shutil.which("notify-send") is not None, "apt install libnotify-bin")
-    check("sound player", any(shutil.which(p) for p in ("pw-play", "paplay", "aplay")))
-    check("ydotool", shutil.which("ydotool") is not None, "run scripts/setup.sh")
-    check(
-        "ydotoold",
-        _service_active("ydotoold") or _ydotoold_socket(),
-        "systemctl --user enable --now ydotoold",
-    )
-    check("keyd", _service_active("keyd"), "run scripts/setup.sh")
-    check(
-        "keyd chord",
-        _keyd_chord(cfg.hotkey.key),
-        "install /etc/keyd/default.conf via scripts/setup.sh",
-    )
-    check("keyboard access", _can_read_keyboard(), "run scripts/setup.sh (udev rule)")
-    mic_name, mic_desc = default_source()
-    check("microphone", bool(mic_name), "no default source from wpctl")
-    check("chatgpt profile", Path(cfg.browser.profile).exists(), "run: benedict login")
+PILL_DEMO = [
+    ("ready", {"hint": "RightCtrl+Space"}, 0.0),
+    ("starting", {}, 0.7),
+    ("recording", {"mic": "Demo microphone", "transcript": ""}, 0.5),
+    ("recording", {"mic": "Demo microphone", "transcript": "the quick"}, 0.5),
+    ("recording", {"mic": "Demo microphone", "transcript": "the quick brown fox jumps"}, 0.5),
+    (
+        "recording",
+        {"mic": "Demo microphone", "transcript": "the quick brown fox jumps over the lazy dog"},
+        0.5,
+    ),
+    ("finalizing", {"transcript": "the quick brown fox jumps over the lazy dog"}, 0.8),
+    ("inserting", {"transcript": "the quick brown fox jumps over the lazy dog"}, 0.6),
+    ("inserted", {"words": 9, "method": "ctrl+v"}, 1.6),
+]
 
-    for name, ok, hint in checks:
-        line = f"[{'ok  ' if ok else 'fail'}] {name}"
-        if not ok and hint:
-            line += f" — {hint}"
-        print(line)
-    if not FOCUS_FILE.exists():
-        print(
-            "[warn] focus tracking inactive — using Shift+Insert fallback for paste; enable with: "
-            "gnome-extensions enable benedict-focus@benedict"
-        )
-    if mic_name:
-        print(f"       mic: {mic_desc or mic_name}")
-    print(f"       config: {CONFIG_PATH}")
-    return 0 if all(ok for _, ok, _ in checks) else 1
+
+def cmd_pill(args: argparse.Namespace) -> int:
+    cfg = load()
+    if args.position:
+        cfg.ui.pill_position = args.position
+    data = status.read()
+    if data.get("state") not in (None, "idle") and not args.force:
+        print("benedict looks busy; stop it or pass --force", file=sys.stderr)
+        return 1
+    ui = {"pill": True, "position": cfg.ui.pill_position}
+    for state, extra, delay in PILL_DEMO:
+        status.write(state, ui=ui, **extra)
+        if delay:
+            time.sleep(delay)
+    status.write("idle", ui=ui)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -343,7 +340,14 @@ def main(argv: list[str] | None = None) -> int:
         help="source browser for --import",
     )
     sub.add_parser("probe", help="dump ChatGPT page controls for selector debugging")
-    sub.add_parser("doctor", help="check system prerequisites")
+    doctor = sub.add_parser("doctor", help="check system prerequisites")
+    doctor.add_argument("--no-color", action="store_true", help="disable colored output")
+    sub.add_parser("config", help="show effective settings").add_argument(
+        "--edit", action="store_true", help="open the config file in $EDITOR"
+    )
+    pill = sub.add_parser("pill", help="play a demo of the status pill")
+    pill.add_argument("--position", choices=list(PILL_POSITIONS), help="override the pill position")
+    pill.add_argument("--force", action="store_true", help="run even if the daemon looks busy")
     sub.add_parser("last", help="print the last transcript")
     sub.add_parser("status", help="print the daemon's current state")
     test = sub.add_parser("test-hotkey", help="wait for the hotkey chord and report events")
@@ -355,6 +359,8 @@ def main(argv: list[str] | None = None) -> int:
         "login": cmd_login,
         "probe": cmd_probe,
         "doctor": cmd_doctor,
+        "config": cmd_config,
+        "pill": cmd_pill,
         "last": cmd_last,
         "status": cmd_status,
         "test-hotkey": cmd_test_hotkey,
