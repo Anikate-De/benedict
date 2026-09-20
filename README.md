@@ -4,6 +4,10 @@ Push-to-talk dictation for Linux using ChatGPT's web dictation as the speech-to-
 
 Hold `RightCtrl+Space` anywhere, speak, release. Benedict drives a hidden Chrome instance (Xvfb) that is logged into `chatgpt.com`, starts ChatGPT's dictation, and when you release it pastes the transcript at your cursor. A notification shows the state and the active microphone.
 
+## Motivation
+
+ChatGPT's web dictation is superb — better than any other speech-to-text I could find today — and it costs nothing extra. But using it meant opening a browser tab, dictating, copying the text, and pasting it back into whatever you were working on. Benedict removes that friction: hold a hotkey anywhere and the transcript lands at your cursor. No API credits, just the ChatGPT session you already pay for.
+
 ## How it works
 
 ```
