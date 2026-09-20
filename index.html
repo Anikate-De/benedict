@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>benedict — push-to-talk ChatGPT dictation for Linux</title>
+    <meta
+      name="description"
+      content="Push-to-talk dictation for Linux using ChatGPT's web dictation as the speech-to-text engine."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <p class="prompt">benedict</p>
+        <h1>Push-to-talk dictation for Linux</h1>
+        <p class="tagline">
+          ChatGPT's web dictation as the speech-to-text engine, at your cursor,
+          from a single hotkey.
+        </p>
+        <p class="links">
+          <a href="https://github.com/Anikate-De/benedict">github</a
+          ><span>/</span
+          ><a href="https://github.com/Anikate-De/benedict#readme">readme</a>
+        </p>
+      </header>
+
+      <hr />
+
+      <section id="what">
+        <h2>What it is</h2>
+        <p>
+          Hold <code>RightCtrl+Space</code> anywhere, speak, release. Benedict
+          drives a hidden Chrome instance (Xvfb) that is logged into
+          <code>chatgpt.com</code>, starts ChatGPT's dictation, and when you
+          release it pastes the transcript at your cursor. A notification shows
+          the state and the active microphone.
+        </p>
+        <p>
+          ChatGPT's web dictation is superb and, under a normal subscription,
+          costs nothing extra. But using it meant opening a browser tab,
+          dictating, copying the text, and pasting it back into whatever you
+          were working on. Benedict removes that friction: hold a hotkey
+          anywhere and the transcript lands at your cursor. No API credits, just
+          the ChatGPT session you already pay for.
+        </p>
+        <p>
+          Nothing is ever sent as a chat message; the dictation text is read
+          from the composer and the composer is cleared after each use.
+          Transcripts are stored in
+          <code>~/.local/state/benedict/last.txt</code> and
+          <code>history.jsonl</code>.
+        </p>
+      </section>
+
+      <section id="how">
+        <h2>How it works</h2>
+        <pre class="diagram">RightCtrl+Space (hold)
+      │  keyd maps the chord to F24 and swallows it
+      ▼
+benedictd (systemd --user)
+  ├── notifications + sound cues       (notify-send, pw-play)
+  ├── Xvfb :99 ─ Chrome ─ ChatGPT web  (Playwright, dedicated profile)
+  └── wl-copy + ydotool paste          (Ctrl+V, or Ctrl+Shift+V in terminals)</pre>
+        <p>
+          A small GNOME Shell extension (<code>benedict-focus@benedict</code>)
+          publishes the focused window class to
+          <code>$XDG_RUNTIME_DIR/benedict-focus</code> so Benedict can choose
+          <code>Ctrl+V</code> versus the terminal paste combo, and renders a
+          floating status pill (bottom center) with live state, the active
+          microphone, and the streaming transcript. If the extension is
+          unavailable, it falls back to <code>Shift+Insert</code> and desktop
+          notifications.
+        </p>
+      </section>
+
+      <section id="demo">
+        <h2>Demo</h2>
+        <p>
+          The full loop, from key press to pasted text. Mockups below follow the
+          real on-screen output.
+        </p>
+
+        <figure>
+          <img
+            src="assets/demo-notification.svg"
+            alt="Desktop notification reading Benedict Listening with the active microphone"
+          />
+          <figcaption>
+            On press: a notification shows the state and the active microphone.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <img
+            src="assets/demo-pill.svg"
+            alt="GNOME status pill showing live state and streaming transcript"
+          />
+          <figcaption>
+            While speaking: the status pill streams the transcript as ChatGPT
+            recognizes it.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <img
+            src="assets/demo-doctor.svg"
+            alt="Terminal output of benedict doctor"
+          />
+          <figcaption>
+            <code>benedict doctor</code> verifies every moving part.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <img
+            src="assets/demo-paste.svg"
+            alt="Terminal showing the transcript pasted at the cursor after release"
+          />
+          <figcaption>
+            On release: the transcript is pasted at the cursor, wherever you
+            were.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="install">
+        <h2>Walkthrough</h2>
+        <p>Requirements: Ubuntu GNOME on Wayland (GNOME 4x/5x) with PipeWire, Google Chrome, and a ChatGPT account.</p>
+        <pre><span class="prompt">git clone https://github.com/Anikate-De/benedict ~/dev/benedict</span>
+cd ~/dev/benedict
+sudo ./scripts/setup.sh</pre>
+        <p>
+          The script installs <code>xvfb</code>, <code>keyd</code>,
+          <code>wl-clipboard</code>, <code>libnotify-bin</code>, installs the
+          keyd chord config, grants live input access via udev
+          <code>uaccess</code> ACLs, and installs the <code>ydotoold</code> and
+          <code>benedict</code> user services.
+        </p>
+        <p>Then:</p>
+        <pre><span class="prompt">benedict doctor</span>                <span class="c"># verify everything</span>
+<span class="prompt">benedict login --import</span>        <span class="c"># copy your ChatGPT session (recommended)</span>
+<span class="prompt">systemctl --user enable --now ydotoold benedict</span>
+<span class="prompt">benedict test-hotkey</span>           <span class="c"># hold RightCtrl+Space, expect press/release</span></pre>
+        <p>
+          No re-login is required. The GNOME focus extension loads on your next
+          login; until then paste uses the <code>Shift+Insert</code> fallback.
+        </p>
+      </section>
+
+      <section id="usage">
+        <h2>Usage</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Hold <code>RightCtrl+Space</code>, speak, release</td>
+              <td>Transcript is pasted at the cursor</td>
+            </tr>
+            <tr>
+              <td><code>benedict doctor</code></td>
+              <td>Diagnose missing pieces</td>
+            </tr>
+            <tr>
+              <td><code>benedict status</code></td>
+              <td>Print the daemon's current state as JSON</td>
+            </tr>
+            <tr>
+              <td><code>benedict probe</code></td>
+              <td>Dump ChatGPT page controls (when OpenAI changes the UI)</td>
+            </tr>
+            <tr>
+              <td><code>benedict last</code></td>
+              <td>Print the last transcript</td>
+            </tr>
+            <tr>
+              <td><code>journalctl --user -u benedict -f</code></td>
+              <td>Follow logs</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>
+          Configuration lives in
+          <code>~/.config/benedict/config.toml</code>; see the
+          <a href="https://github.com/Anikate-De/benedict#configuration"
+            >readme</a
+          >
+          for all keys.
+        </p>
+      </section>
+
+      <section id="roadmap">
+        <h2>Roadmap</h2>
+        <p>
+          Still thinking about the roadmap. As and when I use it, more features
+          will come.
+        </p>
+      </section>
+
+      <footer>
+        <p>
+          Automates your own logged-in ChatGPT session for personal use. Not
+          affiliated with OpenAI. May break when the web UI or usage limits
+          change.
+        </p>
+        <p>
+          <a href="https://github.com/Anikate-De/benedict">source</a>
+          <span>/</span>
+          <a href="https://github.com/Anikate-De/benedict#readme">readme</a>
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+:root {
+  --bg: #0b0b0b;
+  --panel: #111111;
+  --border: #262626;
+  --text: #c8c8c8;
+  --muted: #6f6f6f;
+  --accent: #7ee787;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.wrap {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 5rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+
+a:hover {
+  border-bottom-color: var(--accent);
+}
+
+h1 {
+  font-size: 1.9rem;
+  line-height: 1.2;
+  margin: 0.75rem 0 0.5rem;
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 3.5rem 0 1rem;
+  color: var(--text);
+}
+
+h2::before {
+  content: "## ";
+  color: var(--accent);
+}
+
+p {
+  margin: 0.9rem 0;
+}
+
+.tagline {
+  color: var(--muted);
+  margin: 0.5rem 0 1.5rem;
+}
+
+.links {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+}
+
+.links span {
+  margin: 0 0.5rem;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 3rem 0;
+}
+
+pre {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 1rem 0;
+}
+
+code {
+  font-family: var(--mono);
+}
+
+p code,
+li code,
+td code {
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.05em 0.35em;
+  font-size: 0.9em;
+}
+
+.diagram {
+  color: var(--muted);
+}
+
+ul {
+  padding-left: 1.25rem;
+}
+
+li {
+  margin: 0.35rem 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 13.5px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+figure {
+  margin: 1.5rem 0;
+}
+
+figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+figcaption {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 0.5rem;
+}
+
+footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+footer p {
+  margin: 0.4rem 0;
+}
+
+.prompt::before {
+  content: "$ ";
+  color: var(--accent);
+}
+
+.c {
+  color: var(--muted);
+}

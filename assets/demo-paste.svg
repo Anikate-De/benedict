@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="300" viewBox="0 0 680 300" role="img" aria-label="Transcript pasted at the cursor after releasing the hotkey">
+  <rect width="680" height="300" fill="#0b0b0b"/>
+
+  <rect x="0.5" y="0.5" width="679" height="119" rx="8" fill="#0e0e0e" stroke="#262626"/>
+  <line x1="0" y1="30" x2="680" y2="30" stroke="#262626"/>
+  <circle cx="18" cy="15" r="5" fill="#2e2e2e"/>
+  <circle cx="36" cy="15" r="5" fill="#2e2e2e"/>
+  <circle cx="54" cy="15" r="5" fill="#2e2e2e"/>
+  <text x="340" y="20" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#6f6f6f">before</text>
+  <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14">
+    <text x="24" y="78" fill="#7ee787">$</text>
+    <rect x="42" y="66" width="9" height="16" fill="#c8c8c8"/>
+  </g>
+
+  <text x="340" y="158" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#6f6f6f">RightCtrl+Space released — transcript returns</text>
+  <text x="340" y="178" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14" fill="#7ee787">↓</text>
+
+  <rect x="0.5" y="180.5" width="679" height="119" rx="8" fill="#0e0e0e" stroke="#262626"/>
+  <line x1="0" y1="210" x2="680" y2="210" stroke="#262626"/>
+  <circle cx="18" cy="195" r="5" fill="#2e2e2e"/>
+  <circle cx="36" cy="195" r="5" fill="#2e2e2e"/>
+  <circle cx="54" cy="195" r="5" fill="#2e2e2e"/>
+  <text x="340" y="200" text-anchor="middle" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="11" fill="#6f6f6f">after</text>
+  <g font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14">
+    <text x="24" y="258" fill="#7ee787">$</text>
+    <text x="50" y="258" fill="#c8c8c8">the quick brown fox jumps over the lazy</text>
+    <rect x="376" y="246" width="9" height="16" fill="#7ee787"/>
+  </g>
+</svg>
