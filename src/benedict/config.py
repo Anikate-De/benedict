@@ -9,13 +9,37 @@ CONFIG_PATH = Path.home() / ".config" / "benedict" / "config.toml"
 STATE_DIR = Path.home() / ".local" / "state" / "benedict"
 DEFAULT_TERMINALS = [
     "org.gnome.Terminal",
+    "org.gnome.Ptyxis",
+    "org.gnome.Console",
     "gnome-terminal",
+    "kgx",
     "kitty",
     "Alacritty",
     "com.mitchellh.ghostty",
     "org.wezfurlong.wezterm",
+    "konsole",
     "xterm",
+    "urxvt",
 ]
+TERMINAL_KEYWORDS = (
+    "terminal",
+    "console",
+    "ptyxis",
+    "alacritty",
+    "kitty",
+    "ghostty",
+    "wezterm",
+    "konsole",
+    "xterm",
+    "urxvt",
+)
+
+
+def is_terminal(wm_class: str, configured: list[str]) -> bool:
+    if wm_class in configured:
+        return True
+    lowered = wm_class.lower()
+    return any(keyword in lowered for keyword in TERMINAL_KEYWORDS)
 
 
 @dataclass

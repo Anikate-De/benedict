@@ -9,7 +9,7 @@ import time
 
 from evdev import ecodes
 
-from benedict.config import STATE_DIR, InsertCfg
+from benedict.config import STATE_DIR, InsertCfg, is_terminal
 from benedict.status import FOCUS_FILE
 
 MODIFIERS = {"ctrl": 29, "shift": 42, "alt": 56, "meta": 125}
@@ -131,7 +131,9 @@ class Inserter:
         wm_class = self._focused_wm_class()
         if wm_class is None:
             return self.cfg.universal_combo
-        return self.cfg.terminal_combo if wm_class in self.cfg.terminals else self.cfg.paste_combo
+        if is_terminal(wm_class, self.cfg.terminals):
+            return self.cfg.terminal_combo
+        return self.cfg.paste_combo
 
     def _type(self, text: str) -> None:
         chunks = text.split(SHIFT_ENTER)

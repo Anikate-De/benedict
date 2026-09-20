@@ -12,6 +12,7 @@ from benedict.state import State
 @pytest.fixture(autouse=True)
 def _isolate_state(tmp_path, monkeypatch):
     monkeypatch.setattr(status, "STATE_FILE", tmp_path / "benedict-state.json")
+    monkeypatch.setattr("benedict.daemon.FOCUS_FILE", tmp_path / "benedict-focus")
 
 
 class FakeChat:

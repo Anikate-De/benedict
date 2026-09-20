@@ -58,6 +58,15 @@ def test_paste_uses_terminal_combo():
     ]
 
 
+def test_ptyxis_detected_as_terminal():
+    cfg = InsertCfg(restore_clipboard=False)
+    inserter = FakeInserter(cfg, wm_class="org.gnome.Ptyxis")
+    inserter.insert("hello")
+    assert inserter.commands == [
+        ["ydotool", "key", "--key-delay", "25", "29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
+    ]
+
+
 def test_paste_uses_universal_combo_when_focus_unknown():
     cfg = InsertCfg(restore_clipboard=False)
     inserter = FakeInserter(cfg, wm_class=None)

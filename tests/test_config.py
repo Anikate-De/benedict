@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from benedict import config
+from benedict.config import DEFAULT_TERMINALS, is_terminal
 
 
 def test_defaults():
@@ -37,3 +38,12 @@ ignored = 1
     assert cfg.insert.method == "type"
     assert cfg.insert.terminals == ["kitty"]
     assert cfg.browser.start_url == "https://chatgpt.com/"
+
+
+def test_is_terminal():
+    assert is_terminal("org.gnome.Ptyxis", DEFAULT_TERMINALS)
+    assert is_terminal("org.gnome.Terminal", DEFAULT_TERMINALS)
+    assert is_terminal("kgx", DEFAULT_TERMINALS)
+    assert is_terminal("Some-Weird-Terminal", [])
+    assert not is_terminal("code", DEFAULT_TERMINALS)
+    assert not is_terminal("google-chrome", DEFAULT_TERMINALS)
