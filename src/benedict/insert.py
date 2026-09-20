@@ -1,0 +1,208 @@
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import shutil
+import subprocess
+import threading
+import time
+from pathlib import Path
+
+from evdev import ecodes
+
+from benedict.config import STATE_DIR, InsertCfg
+
+MODIFIERS = {"ctrl": 29, "shift": 42, "alt": 56, "meta": 125}
+SHIFT_ENTER = "\x01"
+FOCUS_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "benedict-focus"
+
+
+class InsertError(RuntimeError):
+    pass
+
+
+def normalize_newlines(text: str, mode: str) -> str:
+    if mode == "literal":
+        return text
+    if mode == "shift+enter":
+        return text.replace("\n", SHIFT_ENTER)
+    return " ".join(line.strip() for line in text.splitlines() if line.strip())
+
+
+def _split_top(text: str, sep: str = ",") -> list[str]:
+    parts: list[str] = []
+    depth = 0
+    quote = False
+    start = 0
+    for i, char in enumerate(text):
+        if quote:
+            quote = char != "'"
+        elif char == "'":
+            quote = True
+        elif char in "{[(":
+            depth += 1
+        elif char in "}])":
+            depth -= 1
+        elif char == sep and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    parts.append(text[start:])
+    return parts
+
+
+def parse_focused_class(output: str) -> str | None:
+    body = output.strip()
+    if body.startswith("("):
+        body = body[1:]
+    if body.endswith(")"):
+        body = body[:-1]
+    body = body.strip().rstrip(",").strip()
+    if body.startswith("{") and body.endswith("}"):
+        body = body[1:-1]
+    for entry in _split_top(body):
+        _, _, value = entry.partition(":")
+        value = value.strip()
+        if not value.startswith("{"):
+            continue
+        props: dict[str, str] = {}
+        for item in _split_top(value.strip("{}")):
+            key, _, prop = item.partition(":")
+            props[key.strip().strip("'")] = prop.strip()
+        if props.get("has-focus") == "<true>":
+            return props.get("wm-class", "").strip().strip("<>").strip("'")
+    return None
+
+
+def _read_focus_file() -> str | None:
+    with contextlib.suppress(OSError):
+        return FOCUS_FILE.read_text().strip() or None
+    return None
+
+
+def _gnome_focused_class() -> str | None:
+    if shutil.which("gdbus") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                "gdbus",
+                "call",
+                "--session",
+                "--dest",
+                "org.gnome.Shell.Introspect",
+                "--object-path",
+                "/org/gnome/Shell/Introspect",
+                "--method",
+                "org.gnome.Shell.Introspect.GetWindows",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return parse_focused_class(proc.stdout)
+
+
+class Inserter:
+    def __init__(self, cfg: InsertCfg):
+        self.cfg = cfg
+        self._focus_cache: tuple[float, str | None] = (0.0, None)
+
+    def insert(self, text: str) -> None:
+        text = normalize_newlines(text.strip(), self.cfg.newline)
+        if not text:
+            raise InsertError("empty transcript")
+        if self.cfg.method == "type":
+            self._type(text)
+        else:
+            self._paste(text)
+        self._save_last(text)
+
+    def _paste(self, text: str) -> None:
+        previous = self._read_clipboard()
+        self._write_clipboard(text)
+        self._send_combo(self._combo())
+        if self.cfg.restore_clipboard and previous is not None:
+            threading.Timer(1.5, self._restore_clipboard, args=(previous,)).start()
+
+    def _combo(self) -> str:
+        wm_class = self._focused_wm_class()
+        if wm_class is None:
+            return self.cfg.universal_combo
+        return self.cfg.terminal_combo if wm_class in self.cfg.terminals else self.cfg.paste_combo
+
+    def _type(self, text: str) -> None:
+        chunks = text.split(SHIFT_ENTER)
+        for index, chunk in enumerate(chunks):
+            if chunk:
+                self._run(["ydotool", "type", "--", chunk])
+            if index < len(chunks) - 1:
+                self._send_combo("shift+enter")
+
+    def _send_combo(self, combo: str) -> None:
+        codes = []
+        for part in combo.split("+"):
+            name = part.strip().lower()
+            code = MODIFIERS.get(name, ecodes.ecodes.get(f"KEY_{name.upper()}"))
+            if code is None:
+                raise InsertError(f"unknown key in combo: {part}")
+            codes.append(code)
+        sequence = [f"{code}:1" for code in codes] + [f"{code}:0" for code in reversed(codes)]
+        self._run(["ydotool", "key", "--key-delay", "25", *sequence])
+
+    def _run(self, cmd: list[str]) -> None:
+        if shutil.which(cmd[0]) is None:
+            raise InsertError(f"{cmd[0]} not found; run scripts/setup.sh")
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise InsertError(str(exc)) from exc
+        if proc.returncode != 0:
+            raise InsertError(proc.stderr.strip() or f"{cmd[0]} failed")
+
+    def _read_clipboard(self) -> str | None:
+        if shutil.which("wl-paste") is None:
+            return None
+        try:
+            proc = subprocess.run(["wl-paste", "-n"], capture_output=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return proc.stdout.decode(errors="replace") if proc.returncode == 0 else None
+
+    def _write_clipboard(self, text: str) -> None:
+        if shutil.which("wl-copy") is None:
+            raise InsertError("wl-copy not found (install wl-clipboard)")
+        try:
+            proc = subprocess.run(["wl-copy"], input=text.encode(), capture_output=True, timeout=5)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise InsertError(str(exc)) from exc
+        if proc.returncode != 0:
+            raise InsertError("wl-copy failed")
+
+    def _restore_clipboard(self, text: str) -> None:
+        with contextlib.suppress(OSError, subprocess.SubprocessError):
+            subprocess.run(["wl-copy"], input=text.encode(), capture_output=True, timeout=5)
+
+    def _focused_wm_class(self) -> str | None:
+        now = time.monotonic()
+        if now - self._focus_cache[0] > 0.3:
+            self._focus_cache = (now, _read_focus_file() or _gnome_focused_class())
+        return self._focus_cache[1]
+
+    def _save_last(self, text: str) -> None:
+        with contextlib.suppress(OSError):
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            (STATE_DIR / "last.txt").write_text(text + "\n")
+            with (STATE_DIR / "history.jsonl").open("a") as handle:
+                record = {"ts": int(time.time()), "text": text}
+                handle.write(json.dumps(record) + "\n")
+
+
+def read_last() -> str:
+    with contextlib.suppress(OSError):
+        return (STATE_DIR / "last.txt").read_text().strip()
+    return ""
