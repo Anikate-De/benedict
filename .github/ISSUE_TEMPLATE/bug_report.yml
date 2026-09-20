@@ -1,0 +1,74 @@
+name: Bug report
+description: Something isn't working as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Running `benedict doctor` first catches most
+        setup problems, so please include its output below.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Hold RightCtrl+Space
+        2. Speak
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: benedict doctor output
+      description: Paste the full output of `benedict doctor`.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Benedict version
+      description: Output of `benedict --version`.
+      placeholder: 0.2.1
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS, GNOME and session
+      placeholder: Ubuntu 24.04, GNOME 46, Wayland
+    validations:
+      required: true
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version
+      placeholder: Google Chrome 129.0.x
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Output of `journalctl --user -u benedict -n 100`, if available.
+      render: shell
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I read the troubleshooting section of the README.
+          required: true
