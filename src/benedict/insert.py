@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import shutil
 import subprocess
 import threading
@@ -14,6 +15,7 @@ from benedict.status import FOCUS_FILE
 
 MODIFIERS = {"ctrl": 29, "shift": 42, "alt": 56, "meta": 125}
 SHIFT_ENTER = "\x01"
+log = logging.getLogger("benedict")
 
 
 class InsertError(RuntimeError):
@@ -109,6 +111,7 @@ class Inserter:
     def __init__(self, cfg: InsertCfg):
         self.cfg = cfg
         self._focus_cache: tuple[float, str | None] = (0.0, None)
+        self._restore_timer: threading.Timer | None = None
 
     def insert(self, text: str) -> None:
         text = normalize_newlines(text.strip(), self.cfg.newline)
@@ -123,12 +126,14 @@ class Inserter:
     def _paste(self, text: str) -> None:
         previous = self._read_clipboard()
         self._write_clipboard(text)
-        self._send_combo(self._combo())
-        if self.cfg.restore_clipboard and previous is not None:
-            threading.Timer(1.5, self._restore_clipboard, args=(previous,)).start()
-
-    def _combo(self) -> str:
         wm_class = self._focused_wm_class()
+        combo = self._combo_for(wm_class)
+        log.info("pasting via %s (focused: %s)", combo, wm_class or "unknown")
+        self._send_combo(combo)
+        if self.cfg.restore_clipboard and previous is not None:
+            self._schedule_restore(previous, text)
+
+    def _combo_for(self, wm_class: str | None) -> str:
         if wm_class is None:
             return self.cfg.universal_combo
         if is_terminal(wm_class, self.cfg.terminals):
@@ -180,26 +185,40 @@ class Inserter:
     def _write_clipboard(self, text: str) -> None:
         if shutil.which("wl-copy") is None:
             raise InsertError("wl-copy not found (install wl-clipboard)")
-        try:
-            proc = subprocess.run(
-                ["wl-copy"],
-                input=text.encode(),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise InsertError("wl-copy timed out") from exc
-        except (OSError, subprocess.SubprocessError) as exc:
-            raise InsertError(str(exc)) from exc
-        if proc.returncode != 0:
-            raise InsertError("wl-copy failed")
+        for _ in range(20):
+            try:
+                proc = subprocess.run(
+                    ["wl-copy"],
+                    input=text.encode(),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise InsertError("wl-copy timed out") from exc
+            except (OSError, subprocess.SubprocessError) as exc:
+                raise InsertError(str(exc)) from exc
+            if proc.returncode == 0 and self._read_clipboard() == text:
+                return
+            time.sleep(0.05)
+        raise InsertError("clipboard did not update")
 
-    def _restore_clipboard(self, text: str) -> None:
+    def _schedule_restore(self, previous: str, expected: str) -> None:
+        if self._restore_timer is not None:
+            self._restore_timer.cancel()
+        self._restore_timer = threading.Timer(
+            1.5, self._restore_clipboard, args=(previous, expected)
+        )
+        self._restore_timer.daemon = True
+        self._restore_timer.start()
+
+    def _restore_clipboard(self, previous: str, expected: str) -> None:
+        if self._read_clipboard() != expected:
+            return
         with contextlib.suppress(OSError, subprocess.SubprocessError):
             subprocess.run(
                 ["wl-copy"],
-                input=text.encode(),
+                input=previous.encode(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
