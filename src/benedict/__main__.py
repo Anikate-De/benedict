@@ -61,16 +61,51 @@ def cmd_login(_args: argparse.Namespace) -> int:
         print("stop benedict first: systemctl --user stop benedict", file=sys.stderr)
         return 1
     Path(cfg.browser.profile).mkdir(parents=True, exist_ok=True)
-    print("Log in to ChatGPT in the window that opens, then close the window.")
-    return subprocess.call(
+    print("A Chrome window will open. Complete the ChatGPT login there.")
+    print("Once you can see the message box where prompts are typed, close the window.")
+    subprocess.call(
         [
             cfg.browser.chrome,
             f"--user-data-dir={cfg.browser.profile}",
             "--no-first-run",
             "--no-default-browser-check",
+            "--start-maximized",
             cfg.browser.start_url,
         ]
     )
+    return _verify_login(cfg)
+
+
+def _verify_login(cfg) -> int:
+    from benedict.browser import BrowserWorker
+
+    print("Verifying login…")
+    worker = BrowserWorker(cfg.browser)
+    try:
+        for attempt in (1, 2):
+            try:
+                chat = worker.chat()
+                break
+            except Exception:
+                if attempt == 2:
+                    raise
+                worker.stop()
+                time.sleep(2)
+        if chat.is_logged_in():
+            print("[ok] Logged in to ChatGPT.")
+            return 0
+        shot = STATE_DIR / "login-failed.png"
+        with contextlib.suppress(Exception):
+            chat.page.screenshot(path=str(shot))
+        print("❌ Not logged in — no ChatGPT composer found.", file=sys.stderr)
+        print(f"   Screenshot: {shot}", file=sys.stderr)
+        print("   Run `benedict login` again and finish the sign-in process.", file=sys.stderr)
+        return 1
+    except Exception as exc:
+        print(f"❌ Verification failed: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        worker.stop()
 
 
 def cmd_probe(_args: argparse.Namespace) -> int:
