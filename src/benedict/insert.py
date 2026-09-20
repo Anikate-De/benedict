@@ -2,20 +2,18 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import shutil
 import subprocess
 import threading
 import time
-from pathlib import Path
 
 from evdev import ecodes
 
 from benedict.config import STATE_DIR, InsertCfg
+from benedict.status import FOCUS_FILE
 
 MODIFIERS = {"ctrl": 29, "shift": 42, "alt": 56, "meta": 125}
 SHIFT_ENTER = "\x01"
-FOCUS_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")) / "benedict-focus"
 
 
 class InsertError(RuntimeError):

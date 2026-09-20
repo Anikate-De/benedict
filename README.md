@@ -20,8 +20,9 @@ benedictd (systemd --user)
 
 A small GNOME Shell extension (`benedict-focus@benedict`) publishes the focused window class
 to `$XDG_RUNTIME_DIR/benedict-focus` so Benedict can choose `Ctrl+V` vs the terminal paste
-combo. If the extension is unavailable, it falls back to `Shift+Insert`, which pastes in both
-terminals and GUI apps.
+combo, and renders a floating status pill (bottom center) with live state, the active
+microphone, and the streaming transcript. If the extension is unavailable, it falls back to
+`Shift+Insert` and desktop notifications.
 
 Nothing is ever sent as a chat message; the dictation text is read from the composer and the
 composer is cleared after each use. Transcripts are stored in
@@ -65,6 +66,7 @@ uses the `Shift+Insert` fallback.
 |---|---|
 | Hold `RightCtrl+Space`, speak, release | Transcript is pasted at the cursor |
 | `benedict doctor` | Diagnose missing pieces |
+| `benedict status` | Print the daemon's current state as JSON |
 | `benedict probe` | Dump ChatGPT page controls (when OpenAI changes the UI) |
 | `benedict last` | Print the last transcript |
 | `journalctl --user -u benedict -f` | Follow logs |
@@ -86,6 +88,7 @@ profile = "~/.local/share/benedict/chrome"
 start_url = "https://chatgpt.com/"
 display = ":99"            # Xvfb display
 idle_shutdown_minutes = 30 # 0 keeps Chrome alive forever
+prewarm = true             # start the hidden browser at daemon startup
 mic = "default"            # or a PipeWire node.name
 
 [insert]

@@ -12,11 +12,12 @@ import sys
 import time
 from pathlib import Path
 
-from benedict import __version__
+from benedict import __version__, status
 from benedict.audio import default_source
 from benedict.config import CONFIG_PATH, STATE_DIR, load
 from benedict.hotkey import HotkeyError
-from benedict.insert import FOCUS_FILE, read_last
+from benedict.insert import read_last
+from benedict.status import FOCUS_FILE
 
 
 def _setup_logging() -> None:
@@ -196,6 +197,15 @@ def cmd_last(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(_args: argparse.Namespace) -> int:
+    data = status.read()
+    if not data:
+        print("no state yet (is the daemon running?)", file=sys.stderr)
+        return 1
+    print(json.dumps(data, indent=2))
+    return 0
+
+
 def cmd_test_hotkey(args: argparse.Namespace) -> int:
     from benedict.hotkey import HotkeyListener
 
@@ -335,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("probe", help="dump ChatGPT page controls for selector debugging")
     sub.add_parser("doctor", help="check system prerequisites")
     sub.add_parser("last", help="print the last transcript")
+    sub.add_parser("status", help="print the daemon's current state")
     test = sub.add_parser("test-hotkey", help="wait for the hotkey chord and report events")
     test.add_argument("--seconds", type=int, default=10)
 
@@ -345,6 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         "probe": cmd_probe,
         "doctor": cmd_doctor,
         "last": cmd_last,
+        "status": cmd_status,
         "test-hotkey": cmd_test_hotkey,
     }
     return handlers[args.command](args)

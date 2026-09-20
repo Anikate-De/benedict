@@ -32,7 +32,7 @@ echo "==> installing GNOME Shell focus extension"
 EXT_DIR="$TARGET_HOME/.local/share/gnome-shell/extensions/benedict-focus@benedict"
 install -d -o "$TARGET_UID" -g "$TARGET_GID" "$EXT_DIR"
 install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/gnome-extension/metadata.json" \
-  "$REPO/gnome-extension/extension.js" "$EXT_DIR/"
+  "$REPO/gnome-extension/extension.js" "$REPO/gnome-extension/stylesheet.css" "$EXT_DIR/"
 runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
   DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
   gnome-extensions enable benedict-focus@benedict 2>/dev/null || true

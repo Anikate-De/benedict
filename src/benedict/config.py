@@ -33,6 +33,7 @@ class BrowserCfg:
     start_url: str = "https://chatgpt.com/"
     display: str = ":99"
     idle_shutdown_minutes: int = 30
+    prewarm: bool = True
     mic: str = "default"
 
 

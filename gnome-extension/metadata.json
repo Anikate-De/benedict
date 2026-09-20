@@ -1,7 +1,7 @@
 {
   "uuid": "benedict-focus@benedict",
-  "name": "Benedict Focus",
-  "description": "Publishes the focused window class for Benedict push-to-talk dictation",
+  "name": "Benedict",
+  "description": "Dictation status pill and focused-window tracking for Benedict",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "version": 1
+  "version": 2
 }

@@ -11,7 +11,7 @@ from pathlib import Path
 APP = "Benedict"
 SOUND_DIR = Path.home() / ".local" / "share" / "benedict" / "sounds"
 PLAYERS = ("pw-play", "paplay", "aplay")
-TONES = (("start", 880, 90), ("stop", 660, 90), ("error", 330, 220))
+TONES = (("press", 1320, 35), ("start", 880, 90), ("stop", 660, 90), ("error", 330, 220))
 
 
 def write_tone(path: Path, freq: int, ms: int, rate: int = 44100) -> None:
