@@ -41,7 +41,7 @@ def test_normalize_shift_enter():
 def test_paste_uses_ctrl_v():
     cfg = InsertCfg(restore_clipboard=False)
     inserter = FakeInserter(cfg, wm_class="code")
-    inserter.insert("hello")
+    assert inserter.insert("hello") == "ctrl+v"
     assert inserter.writes == ["hello"]
     assert inserter.commands == [
         ["ydotool", "key", "--key-delay", "25", "29:1", "47:1", "47:0", "29:0"]
@@ -79,7 +79,7 @@ def test_paste_uses_universal_combo_when_focus_unknown():
 def test_type_method_chunks_on_shift_enter():
     cfg = InsertCfg(method="type", newline="shift+enter", restore_clipboard=False)
     inserter = FakeInserter(cfg)
-    inserter.insert("one\ntwo")
+    assert inserter.insert("one\ntwo") == "type"
     assert inserter.commands[0] == ["ydotool", "type", "--", "one"]
     assert inserter.commands[1][0:2] == ["ydotool", "key"]
     assert inserter.commands[2] == ["ydotool", "type", "--", "two"]

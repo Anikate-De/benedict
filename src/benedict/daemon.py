@@ -18,6 +18,12 @@ from benedict.status import FOCUS_FILE
 log = logging.getLogger("benedict")
 
 
+def combo_label(method: str) -> str:
+    if method == "type":
+        return "Typed"
+    return "+".join(part.capitalize() for part in method.split("+"))
+
+
 class Daemon:
     def __init__(
         self,
@@ -67,16 +73,26 @@ class Daemon:
             self.notifier.close()
 
     def _pill_active(self) -> bool:
-        return FOCUS_FILE.exists()
+        return self.cfg.ui.pill and FOCUS_FILE.exists()
+
+    def _notify(self, pill: bool) -> bool:
+        return self.cfg.ui.notify_while_pill or not pill
+
+    def _ui_payload(self) -> dict:
+        return {
+            "pill": self.cfg.ui.pill,
+            "position": self.cfg.ui.pill_position,
+            "margin": self.cfg.ui.pill_margin,
+        }
 
     def _set_state(self, state: str, **extra) -> None:
         self._generation += 1
-        status.write(state, **extra)
+        status.write(state, ui=self._ui_payload(), **extra)
 
     def _transient_state(self, state: str, delay: float, **extra) -> None:
         self._generation += 1
         generation = self._generation
-        status.write(state, **extra)
+        status.write(state, ui=self._ui_payload(), **extra)
 
         def reset() -> None:
             if self._generation == generation:
@@ -88,9 +104,10 @@ class Daemon:
         self.state = State.STARTING
         self._last_use = time.monotonic()
         pill = self._pill_active()
+        notify = self._notify(pill)
         self._set_state("starting")
         self.notifier.play("press")
-        if not pill:
+        if notify:
             self.notifier.status("Starting dictation…")
         log.info("session start")
         try:
@@ -100,15 +117,15 @@ class Daemon:
             if not chat.start(self._release.is_set):
                 chat.clear()
                 self._set_state("idle")
-                if not pill:
+                if notify:
                     self.notifier.done("Dictation cancelled")
                 log.info("dictation cancelled before recording")
                 return
             self.state = State.RECORDING
             mic = self.browser.mic_display()
             self._set_state("recording", mic=mic, transcript="")
-            if not pill:
-                self.notifier.status("Listening…", f"mic: {mic}")
+            if notify:
+                self.notifier.status("Listening", f"Microphone: {mic}")
             self.notifier.play("start")
             log.info("recording")
             started = time.monotonic()
@@ -124,24 +141,29 @@ class Daemon:
                     partial = current
                     self._set_state("recording", mic=mic, transcript=partial)
             self.state = State.FINALIZING
-            self._set_state("finalizing")
-            if not pill:
-                self.notifier.status("Transcribing…")
+            self._set_state("finalizing", transcript=partial)
+            if notify:
+                self.notifier.status("Transcribing…", f"Microphone: {mic}")
             log.info("finalizing")
             chat.stop()
             text = chat.wait_transcript()
             if not text:
                 raise DictationFailed("no speech detected")
             self.state = State.INSERTING
-            self._set_state("inserting")
-            self.inserter.insert(text)
+            self._set_state("inserting", transcript=text)
+            if notify:
+                self.notifier.status("Inserting…")
+            method = self.inserter.insert(text) or "paste"
             chat.clear()
             self.notifier.play("stop")
             words = len(text.split())
-            self._transient_state("inserted", 1.5, words=words, text=text)
-            if not pill:
-                self.notifier.done(f"Inserted {words} word{'s' if words != 1 else ''}")
-            log.info("inserted %d words", words)
+            self._transient_state("inserted", 1.5, words=words, text=text, method=method)
+            if notify:
+                self.notifier.done(
+                    f"Pasted {words} word{'s' if words != 1 else ''}",
+                    f"{combo_label(method)} at the focused window",
+                )
+            log.info("inserted %d words via %s", words, method)
         except Exception as exc:
             self.state = State.ERROR
             log.warning("session failed: %s", exc)

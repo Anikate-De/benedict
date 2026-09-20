@@ -113,17 +113,19 @@ class Inserter:
         self._focus_cache: tuple[float, str | None] = (0.0, None)
         self._restore_timer: threading.Timer | None = None
 
-    def insert(self, text: str) -> None:
+    def insert(self, text: str) -> str:
         text = normalize_newlines(text.strip(), self.cfg.newline)
         if not text:
             raise InsertError("empty transcript")
         if self.cfg.method == "type":
             self._type(text)
+            method = "type"
         else:
-            self._paste(text)
+            method = self._paste(text)
         self._save_last(text)
+        return method
 
-    def _paste(self, text: str) -> None:
+    def _paste(self, text: str) -> str:
         previous = self._read_clipboard()
         self._write_clipboard(text)
         wm_class = self._focused_wm_class()
@@ -132,6 +134,7 @@ class Inserter:
         self._send_combo(combo)
         if self.cfg.restore_clipboard and previous is not None:
             self._schedule_restore(previous, text)
+        return combo
 
     def _combo_for(self, wm_class: str | None) -> str:
         if wm_class is None:

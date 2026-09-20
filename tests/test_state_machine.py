@@ -5,7 +5,7 @@ import pytest
 from benedict import status
 from benedict.chatgpt import DictationUnavailable
 from benedict.config import Config
-from benedict.daemon import Daemon
+from benedict.daemon import Daemon, combo_label
 from benedict.state import State
 
 
@@ -65,6 +65,7 @@ class FakeInserter:
 
     def insert(self, text):
         self.texts.append(text)
+        return "ctrl+v"
 
 
 class FakeNotifier:
@@ -106,7 +107,7 @@ def test_successful_session():
     assert daemon.state is State.IDLE
     assert chat.started and chat.stopped and chat.cleared
     assert inserter.texts == ["hello world"]
-    assert ("done", "Inserted 2 words") in notifier.events
+    assert ("done", "Pasted 2 words", "Ctrl+V at the focused window") in notifier.events
     assert ("play", "start") in notifier.events
     assert ("play", "stop") in notifier.events
 
@@ -147,3 +148,17 @@ def test_max_duration_cap():
     daemon._session()
     assert chat.stopped
     assert inserter.texts == ["hello world"]
+
+
+def test_state_includes_ui_payload():
+    daemon, _, _, _ = make_daemon()
+    daemon._set_state("recording", mic="m")
+    data = status.read()
+    assert data["ui"] == {"pill": True, "position": "bottom-center", "margin": 48}
+
+
+def test_combo_label():
+    assert combo_label("ctrl+v") == "Ctrl+V"
+    assert combo_label("ctrl+shift+v") == "Ctrl+Shift+V"
+    assert combo_label("shift+insert") == "Shift+Insert"
+    assert combo_label("type") == "Typed"
