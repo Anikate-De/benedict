@@ -9,7 +9,9 @@ fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET_USER="${SUDO_USER:-$USER}"
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
-TARGET_ID="$(id -u "$TARGET_USER"):$(id -g "$TARGET_USER")"
+TARGET_UID="$(id -u "$TARGET_USER")"
+TARGET_GID="$(id -g "$TARGET_USER")"
+TARGET_ID="$TARGET_UID:$TARGET_GID"
 
 echo "==> installing system packages"
 apt-get update -qq
@@ -26,11 +28,11 @@ usermod -aG input "$TARGET_USER"
 
 echo "==> installing GNOME Shell focus extension"
 EXT_DIR="$TARGET_HOME/.local/share/gnome-shell/extensions/benedict-focus@benedict"
-install -d -o "$TARGET_ID" "$EXT_DIR"
-install -m 644 -o "$TARGET_ID" "$REPO/gnome-extension/metadata.json" \
+install -d -o "$TARGET_UID" -g "$TARGET_GID" "$EXT_DIR"
+install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/gnome-extension/metadata.json" \
   "$REPO/gnome-extension/extension.js" "$EXT_DIR/"
-runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" \
-  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${TARGET_ID%%:*}/bus" \
+runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
+  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
   gnome-extensions enable benedict-focus@benedict 2>/dev/null || true
 
 echo "==> installing keyd chord config"
@@ -48,23 +50,33 @@ fi
 
 echo "==> installing ydotoold user service"
 YDOTOOLD="$(command -v ydotoold || true)"
-[[ -z "$YDOTOOLD" && -x /usr/local/bin/ydotoold ]] && YDOTOOLD=/usr/local/bin/ydotoold
-[[ -z "$YDOTOOLD" && -x /usr/bin/ydotoold ]] && YDOTOOLD=/usr/bin/ydotoold
+if [[ -z "$YDOTOOLD" && -x /usr/local/bin/ydotoold ]]; then
+  YDOTOOLD=/usr/local/bin/ydotoold
+fi
+if [[ -z "$YDOTOOLD" && -x /usr/bin/ydotoold ]]; then
+  YDOTOOLD=/usr/bin/ydotoold
+fi
 if [[ -z "$YDOTOOLD" ]]; then
   echo "ydotoold not found; install ydotool first" >&2
   exit 1
 fi
-install -d -o "$TARGET_ID" "$TARGET_HOME/.config/systemd/user"
+install -d -o "$TARGET_UID" -g "$TARGET_GID" "$TARGET_HOME/.config/systemd/user"
 sed "s|@YDOTOOLD@|$YDOTOOLD|" "$REPO/systemd/ydotoold.service" \
   > "$TARGET_HOME/.config/systemd/user/ydotoold.service"
 chown "$TARGET_ID" "$TARGET_HOME/.config/systemd/user/ydotoold.service"
 
 echo "==> installing benedict"
 UV="$(command -v uv || true)"
-[[ -z "$UV" ]] && UV="$TARGET_HOME/.local/bin/uv"
+if [[ -z "$UV" && -x "$TARGET_HOME/.local/bin/uv" ]]; then
+  UV="$TARGET_HOME/.local/bin/uv"
+fi
+if [[ -z "$UV" ]]; then
+  echo "uv not found; install it first: https://docs.astral.sh/uv/" >&2
+  exit 1
+fi
 runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" "$UV" tool install --editable "$REPO"
 
-install -m 644 -o "$TARGET_ID" "$REPO/systemd/benedict.service" \
+install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/systemd/benedict.service" \
   "$TARGET_HOME/.config/systemd/user/benedict.service"
 
 cat <<EOF
