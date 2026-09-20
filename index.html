@@ -167,7 +167,9 @@ sudo ./scripts/setup.sh</pre>
 <span class="prompt">systemctl --user enable --now ydotoold benedict</span></pre>
         <p>
           Run <code>benedict doctor</code> if anything feels off, and
-          <code>benedict --help</code> to see the rest. The
+          <code>benedict --help</code> to see the rest. Want to preview the
+          status pill without dictating? <code>benedict pill</code> plays a
+          short demo. The
           <a href="https://github.com/Anikate-De/benedict#readme">README</a>
           has the full configuration reference, uninstall steps, and a
           troubleshooting section.
@@ -176,6 +178,18 @@ sudo ./scripts/setup.sh</pre>
 
       <section id="roadmap">
         <h2>Roadmap</h2>
+        <p>
+          <strong>v0.2</strong> — the pill grows up: live state, the active
+          microphone, the transcript streaming in with a blinking caret, a
+          configurable position, notifications that mirror it, a checklist in
+          <code>benedict doctor</code>, and new <code>[ui]</code> settings with
+          <code>benedict config</code>.
+        </p>
+        <p>
+          <strong>v0.1</strong> — the first release: hold-to-talk, hidden
+          ChatGPT, focus-aware paste, clipboard restore, and transcript
+          history.
+        </p>
         <p>
           Still thinking about the roadmap. As and when I use it, more features
           will come.
