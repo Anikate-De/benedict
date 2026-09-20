@@ -4,6 +4,13 @@ All notable changes to Benedict are documented in this file. The format is based
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-21
+
+### Added
+
+- Project logo (`assets/logo.svg`), shown in the README and used as the favicon on the website.
+- `benedict(1)` man page, installed by `scripts/setup.sh`, so `man benedict` works.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added
@@ -42,5 +49,6 @@ All notable changes to Benedict are documented in this file. The format is based
 - Desktop notifications and sound cues, with transcript history in `~/.local/state/benedict`.
 - GNOME Shell extension publishing the focused window class and a basic status pill.
 
+[0.2.1]: https://github.com/Anikate-De/benedict/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Anikate-De/benedict/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Anikate-De/benedict/releases/tag/v0.1.0

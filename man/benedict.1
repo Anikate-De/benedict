@@ -1,0 +1,159 @@
+.TH BENEDICT 1 "2026-09-21" "benedict 0.2.1" "User Commands"
+.SH NAME
+benedict \- push-to-talk ChatGPT dictation for Linux
+.SH SYNOPSIS
+.B benedict
+.I COMMAND
+.RI [ options ]
+.br
+.B benedict
+.B \-\-version
+.SH DESCRIPTION
+.B benedict
+lets you dictate into any application.
+Hold the hotkey
+.RB ( RightCtrl+Space
+by default), speak, and release.
+The transcript is inserted at the cursor of the focused window.
+.PP
+Speech recognition is performed by ChatGPT's web dictation, driven through a
+hidden Chrome instance running under Xvfb.
+The instance stays signed in to your own ChatGPT account, so no API key or
+extra credits are required.
+A floating status pill and desktop notifications show the live state, the
+active microphone, and the transcript as it forms.
+.PP
+Run
+.B benedict
+without arguments to list the available commands.
+.SH COMMANDS
+.TP
+.B run
+Run the dictation daemon in the foreground.
+This is what the
+.B benedict
+systemd user service executes; you rarely need to start it by hand.
+.TP
+.B login
+Open a visible Chrome window so you can sign in to ChatGPT once.
+Use
+.B \-\-import
+to copy an existing ChatGPT session from another browser instead of signing
+in again.
+.TP
+.B probe
+Dump the ChatGPT page controls that
+.B benedict
+looks for.
+Useful when OpenAI changes the web UI and the selectors need updating.
+.TP
+.B doctor
+Check system prerequisites such as packages, services, input access, and the
+GNOME extension, and print a pass/fail checklist.
+Exits non-zero if any check fails.
+.TP
+.B config
+Print the effective settings and the path to the configuration file.
+.TP
+.B pill
+Play a short demonstration of every status-pill state.
+.TP
+.B last
+Print the most recent transcript.
+.TP
+.B status
+Print the daemon's current state as JSON.
+.TP
+.B test\-hotkey
+Wait for the hotkey chord and report press and release events.
+Use this to verify that keyd is delivering the chord.
+.SH OPTIONS
+.SS Global
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.B \-h, \-\-help
+Print help for
+.B benedict
+or for a given command and exit.
+.SS login
+.TP
+.B \-\-import
+Import the ChatGPT session from an existing Chrome, Brave, Chromium, Edge, or
+Vivaldi profile.
+.TP
+.B \-\-browser " " \fIBROWSER\fR
+Source browser to import from:
+.IR brave ", " chrome ", " chromium ", " edge ", or " vivaldi .
+.SS doctor
+.TP
+.B \-\-no\-color
+Disable colored output.
+.SS config
+.TP
+.B \-\-edit
+Open the configuration file in
+.BR $EDITOR ,
+creating it from the defaults if it does not exist.
+.SS pill
+.TP
+.B \-\-position " " \fIPOSITION\fR
+Override the pill position for the demo:
+.IR bottom-center ", " bottom-right ", " top-center ", or " top-right .
+.TP
+.B \-\-force
+Run the demo even if the daemon looks busy.
+.SS test\-hotkey
+.TP
+.B \-\-seconds " " \fISECONDS\fR
+How long to listen for the chord (default: 10).
+.SH FILES
+.TP
+.I ~/.config/benedict/config.toml
+User configuration.
+All keys are optional.
+.TP
+.I ~/.local/state/benedict/
+Daemon state, logs, the last transcript, and the transcript history.
+.TP
+.I /etc/keyd/default.conf
+keyd configuration that maps the hotkey chord to F24.
+.SH ENVIRONMENT
+.TP
+.B EDITOR
+Editor used by
+.BR "benedict config \-\-edit" .
+.TP
+.B NO_COLOR
+When set, disables colored output, as if
+.B \-\-no\-color
+were passed.
+.SH EXAMPLES
+.TP
+.B benedict doctor
+Verify that everything is installed and working.
+.TP
+.B benedict login \-\-import
+Sign in to ChatGPT by copying the session from your everyday browser.
+.TP
+.B systemctl \-\-user enable \-\-now ydotoold benedict
+Enable and start the background services.
+.TP
+.B benedict test\-hotkey
+Confirm the hotkey chord is being delivered.
+.TP
+.B journalctl \-\-user \-u benedict \-f
+Follow the daemon log.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR keyd (1)
+.PP
+Full documentation: https://github.com/Anikate-De/benedict
+.SH BUGS
+Report issues at https://github.com/Anikate-De/benedict/issues
+.PP
+.B benedict
+is not affiliated with OpenAI, and it may break when the ChatGPT web UI or
+usage limits change.

@@ -86,6 +86,11 @@ runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" "$UV" tool install --editab
 install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/systemd/benedict.service" \
   "$TARGET_HOME/.config/systemd/user/benedict.service"
 
+echo "==> installing man page"
+install -d /usr/share/man/man1
+install -m 644 "$REPO/man/benedict.1" /usr/share/man/man1/benedict.1
+mandb -q 2>/dev/null || true
+
 cat <<EOF
 
 Setup complete. Next steps:

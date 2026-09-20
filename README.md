@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="128" alt="Benedict" />
+</p>
+
 # Benedict
 
 [![CI](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml)
@@ -72,6 +76,7 @@ Input access needs no re-login (the udev ACLs apply live). The GNOME extension i
 | `benedict pill` | Play a short demo of the status pill |
 | `benedict probe` | Dump ChatGPT page controls (when OpenAI changes the UI) |
 | `benedict last` | Print the last transcript |
+| `man benedict` | Read the manual page |
 | `journalctl --user -u benedict -f` | Follow logs |
 
 ## Configuration
@@ -144,6 +149,7 @@ systemctl --user disable --now benedict ydotoold
 uv tool uninstall benedict
 sudo rm /etc/keyd/default.conf /etc/udev/rules.d/70-benedict-input.rules \
         /etc/udev/rules.d/99-benedict-uinput.rules \
+        /usr/share/man/man1/benedict.1 \
         "$HOME/.config/systemd/user/ydotoold.service" \
         "$HOME/.config/systemd/user/benedict.service"
 rm -rf ~/.local/share/benedict ~/.local/state/benedict
@@ -155,6 +161,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/benedict-focus@benedict
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
+- **v0.2.1** — project logo in the README and on the website, and a `benedict(1)` man page so `man benedict` explains the CLI.
 - **v0.2** — floating status pill with live state, the active microphone, and the streaming transcript with a blinking caret; configurable position; notifications mirror the pill (`Listening` + microphone, `Pasted N words` + paste method); `benedict doctor` is now a colored 9-point checklist; new `[ui]` settings, `benedict config`, and `benedict pill`; fixed the pill rendering in the top-left corner on GNOME 50.
 - **v0.1** — first release: hold-to-talk via keyd, hidden Chrome + ChatGPT dictation, focus-aware paste (`Ctrl+V`, `Ctrl+Shift+V`, `Shift+Insert`), clipboard restore, transcript history, sound cues, and notifications.
 
