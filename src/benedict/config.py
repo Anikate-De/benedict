@@ -7,6 +7,39 @@ from typing import Any
 
 CONFIG_PATH = Path.home() / ".config" / "benedict" / "config.toml"
 STATE_DIR = Path.home() / ".local" / "state" / "benedict"
+PILL_POSITIONS = ("bottom-center", "bottom-right", "top-center", "top-right")
+DEFAULT_TOML = """\
+[hotkey]
+mode = "hold"              # reserved; hold-to-talk
+key = "f24"                # key emitted by keyd
+hint = "RightCtrl+Space"   # shown in notifications
+max_duration_sec = 600
+
+[browser]
+chrome = "/usr/bin/google-chrome"
+profile = "~/.local/share/benedict/chrome"
+start_url = "https://chatgpt.com/"
+display = ":99"            # Xvfb display
+idle_shutdown_minutes = 30 # 0 keeps Chrome alive forever
+prewarm = true             # start the hidden browser at daemon startup
+mic = "default"            # or a PipeWire node.name
+
+[insert]
+method = "paste"           # paste | type
+paste_combo = "ctrl+v"
+terminal_combo = "ctrl+shift+v"
+universal_combo = "shift+insert"  # used when the focused app is unknown
+newline = "space"          # space | shift+enter | literal
+restore_clipboard = true
+
+[ui]
+notifications = true
+sounds = true
+pill = true                # floating status pill (GNOME extension)
+pill_position = "bottom-center"  # bottom-center | bottom-right | top-center | top-right
+pill_margin = 48           # px from screen edges (bottom placements also clear the dock)
+notify_while_pill = true   # also send desktop notifications while the pill is visible
+"""
 DEFAULT_TERMINALS = [
     "org.gnome.Terminal",
     "org.gnome.Ptyxis",
@@ -76,6 +109,10 @@ class InsertCfg:
 class UICfg:
     notifications: bool = True
     sounds: bool = True
+    pill: bool = True
+    pill_position: str = "bottom-center"
+    pill_margin: int = 48
+    notify_while_pill: bool = True
 
 
 @dataclass
@@ -111,4 +148,10 @@ def load(path: Path = CONFIG_PATH) -> Config:
         _fill(section, raw.get(name, {}))
     cfg.browser.profile = str(Path(cfg.browser.profile).expanduser())
     cfg.browser.chrome = str(Path(cfg.browser.chrome).expanduser())
+    if cfg.ui.pill_position not in PILL_POSITIONS:
+        cfg.ui.pill_position = "bottom-center"
+    try:
+        cfg.ui.pill_margin = max(0, min(400, int(cfg.ui.pill_margin)))
+    except (TypeError, ValueError):
+        cfg.ui.pill_margin = 48
     return cfg

@@ -14,6 +14,10 @@ def test_defaults():
     assert cfg.insert.terminal_combo == "ctrl+shift+v"
     assert cfg.insert.terminals
     assert cfg.ui.notifications is True
+    assert cfg.ui.pill is True
+    assert cfg.ui.pill_position == "bottom-center"
+    assert cfg.ui.pill_margin == 48
+    assert cfg.ui.notify_while_pill is True
     assert not cfg.browser.profile.startswith("~")
 
 
@@ -38,6 +42,48 @@ ignored = 1
     assert cfg.insert.method == "type"
     assert cfg.insert.terminals == ["kitty"]
     assert cfg.browser.start_url == "https://chatgpt.com/"
+
+
+def test_invalid_pill_position_falls_back(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        """
+[ui]
+pill_position = "middle-of-nowhere"
+"""
+    )
+    cfg = config.load(path)
+    assert cfg.ui.pill_position == "bottom-center"
+
+
+def test_ui_overrides(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        """
+[ui]
+pill = false
+pill_position = "top-right"
+pill_margin = 12
+notify_while_pill = false
+"""
+    )
+    cfg = config.load(path)
+    assert cfg.ui.pill is False
+    assert cfg.ui.pill_position == "top-right"
+    assert cfg.ui.pill_margin == 12
+    assert cfg.ui.notify_while_pill is False
+
+
+def test_pill_margin_is_clamped(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[ui]\npill_margin = 9999\n')
+    assert config.load(path).ui.pill_margin == 400
+
+    path.write_text('[ui]\npill_margin = -5\n')
+    assert config.load(path).ui.pill_margin == 0
+
+    path.write_text('[ui]\npill_margin = "wide"\n')
+    assert config.load(path).ui.pill_margin == 48
 
 
 def test_is_terminal():
