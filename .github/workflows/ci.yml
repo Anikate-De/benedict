@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.summary.outputs.coverage }}
+      tests: ${{ steps.summary.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests
+        run: uv run pytest --cov=benedict --cov-report=term-missing --cov-report=json
+      - name: Summarize
+        id: summary
+        run: |
+          uv run python - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import sys
+
+          totals = json.load(open("coverage.json"))["totals"]
+          coverage = f"{totals['percent_covered']:.1f}%"
+
+          collected = subprocess.run(
+              [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+              capture_output=True,
+              text=True,
+          )
+          match = re.search(r"(\d+) tests? collected", collected.stdout)
+          tests = f"{match.group(1)} passed" if match else "unknown"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"coverage={coverage}\n")
+              handle.write(f"tests={tests}\n")
+          PY
+
+  badges:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: badges
+      - name: Coverage badge
+        uses: emibcn/badge-action@v2
+        with:
+          label: coverage
+          status: ${{ needs.test.outputs.coverage }}
+          color: '2ea043'
+          path: coverage.svg
+      - name: Tests badge
+        uses: emibcn/badge-action@v2
+        with:
+          label: tests
+          status: ${{ needs.test.outputs.tests }}
+          color: '2ea043'
+          path: tests.svg
+      - name: Push badges
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage.svg tests.svg
+          git diff --cached --quiet || git commit -m "Update badges"
+          git push
