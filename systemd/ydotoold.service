@@ -1,0 +1,11 @@
+[Unit]
+Description=ydotool input injection daemon
+
+[Service]
+Type=simple
+ExecStart=@YDOTOOLD@
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
