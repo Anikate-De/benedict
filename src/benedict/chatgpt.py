@@ -74,17 +74,22 @@ class ChatGPT:
             with contextlib.suppress(Exception):
                 self.page.wait_for_timeout(250)
 
-    def mic_button(self) -> Locator | None:
-        for selector in MIC_SELECTORS:
-            try:
-                locator = self.page.locator(selector).first
-                if locator.count() and locator.is_visible():
-                    label = (locator.get_attribute("aria-label") or "").lower()
-                    if "dictation" in label and "voice" not in label:
-                        return locator
-            except Exception:
-                continue
-        return None
+    def mic_button(self, timeout_ms: int = 5000) -> Locator | None:
+        deadline = time.monotonic() + timeout_ms / 1000
+        while True:
+            for selector in MIC_SELECTORS:
+                try:
+                    locator = self.page.locator(selector).first
+                    if locator.count() and locator.is_visible():
+                        label = (locator.get_attribute("aria-label") or "").lower()
+                        if "dictation" in label and "voice" not in label:
+                            return locator
+                except Exception:
+                    continue
+            if time.monotonic() >= deadline:
+                return None
+            with contextlib.suppress(Exception):
+                self.page.wait_for_timeout(250)
 
     def stop_button(self) -> Locator | None:
         for selector in STOP_SELECTORS:
@@ -110,7 +115,7 @@ class ChatGPT:
     def is_recording(self) -> bool:
         if self.stop_button() is not None:
             return True
-        mic = self.mic_button()
+        mic = self.mic_button(timeout_ms=0)
         if mic is None:
             return False
         try:
@@ -154,7 +159,7 @@ class ChatGPT:
             with contextlib.suppress(Exception):
                 stop.click()
                 return
-        mic = self.mic_button()
+        mic = self.mic_button(timeout_ms=0)
         if mic is not None:
             with contextlib.suppress(Exception):
                 mic.click()

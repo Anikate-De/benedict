@@ -15,7 +15,7 @@ TARGET_ID="$TARGET_UID:$TARGET_GID"
 
 echo "==> installing system packages"
 apt-get update -qq
-apt-get install -y xvfb keyd wl-clipboard libnotify-bin
+apt-get install -y xvfb keyd wl-clipboard libnotify-bin libsecret-tools
 
 echo "==> granting input access via udev uaccess ACLs"
 modprobe uinput || true

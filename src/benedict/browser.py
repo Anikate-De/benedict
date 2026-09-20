@@ -65,6 +65,17 @@ class BrowserWorker:
         _, description = default_source()
         return description or "system default"
 
+    def add_cookies(self, cookies: list[dict]) -> list[tuple[dict, str]]:
+        if self._context is None:
+            raise BrowserError("browser is not running")
+        failures: list[tuple[dict, str]] = []
+        for cookie in cookies:
+            try:
+                self._context.add_cookies([cookie])
+            except Exception as exc:
+                failures.append((cookie, str(exc)))
+        return failures
+
     def stop(self) -> None:
         self._shutdown_browser()
         self._shutdown_display()

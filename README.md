@@ -49,7 +49,9 @@ Then:
 
 ```bash
 benedict doctor                # verify everything
-benedict login                 # log in to ChatGPT once, close the window
+benedict login --import        # copy your ChatGPT session from Brave/Chrome (recommended)
+# or, if you prefer a fresh sign-in:
+#   benedict login            # use email + password, not Google
 systemctl --user enable --now ydotoold benedict
 benedict test-hotkey           # hold RightCtrl+Space, expect press/release events
 ```
@@ -131,9 +133,10 @@ Benedict config.
 - **"not logged in" notification** — run `benedict login` (stop the daemon first:
   `systemctl --user stop benedict`).
 - **Google sign-in says "This browser or app may not be secure"** — Google refuses OAuth in
-  the dedicated Benedict profile. Sign in with **email + password** instead; if the account was
-  created through Google, use "Forgot password" once to set a password, then run
-  `benedict login` again.
+  the dedicated Benedict profile. Copy the session from a browser where you are already logged
+  in: `benedict login --import` (stop the daemon first). Alternatively sign in with email +
+  password; if the account was created through Google, use "Forgot password" once to set a
+  password.
 - **Dictation button not found** — OpenAI changed the UI. Run `benedict probe` and update
   `MIC_SELECTORS`/`STOP_SELECTORS` in `src/benedict/chatgpt.py`, then reinstall:
   `uv tool install --editable .`

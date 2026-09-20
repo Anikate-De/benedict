@@ -51,15 +51,23 @@ def cmd_run(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_login(_args: argparse.Namespace) -> int:
-    cfg = load()
+def _ensure_stopped() -> bool:
     handle = _lock_handle()
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         fcntl.flock(handle, fcntl.LOCK_UN)
     except BlockingIOError:
         print("stop benedict first: systemctl --user stop benedict", file=sys.stderr)
+        return False
+    return True
+
+
+def cmd_login(args: argparse.Namespace) -> int:
+    cfg = load()
+    if not _ensure_stopped():
         return 1
+    if args.import_cookies or args.browser:
+        return cmd_import(cfg, args.browser)
     Path(cfg.browser.profile).mkdir(parents=True, exist_ok=True)
     print("A Chrome window will open. Complete the ChatGPT login there.")
     print("Once you can see the message box where prompts are typed, close the window.")
@@ -70,10 +78,53 @@ def cmd_login(_args: argparse.Namespace) -> int:
             "--no-first-run",
             "--no-default-browser-check",
             "--start-maximized",
+            "--password-store=basic",
             cfg.browser.start_url,
         ]
     )
     return _verify_login(cfg)
+
+
+def cmd_import(cfg, browser: str | None) -> int:
+    from benedict.browser import BrowserWorker
+    from benedict.cookieimport import find_sources, has_session, load_cookies
+
+    sources = find_sources(browser)
+    if not sources:
+        print("no Chrome, Brave, Chromium, Edge or Vivaldi profile found", file=sys.stderr)
+        return 1
+    best: tuple[str, Path, list] | None = None
+    for name, base in sources:
+        cookies = load_cookies(base, name)
+        print(f"[..] {name} ({base.parent.name}): {len(cookies)} chatgpt/openai cookies")
+        if has_session(cookies):
+            best = (name, base, cookies)
+            break
+        if best is None and cookies:
+            best = (name, base, cookies)
+    if best is None:
+        print("no ChatGPT session found; log in to ChatGPT in that browser first", file=sys.stderr)
+        return 1
+    name, _, cookies = best
+    print(f"    importing {len(cookies)} cookies from {name}…")
+    worker = BrowserWorker(cfg.browser)
+    try:
+        chat = worker.chat()
+        failures = worker.add_cookies([c.to_playwright() for c in cookies])
+        if failures:
+            print(f"    {len(failures)} cookies rejected, e.g. {failures[0][0]['name']}")
+        chat.page.reload(wait_until="domcontentloaded")
+        if chat.is_logged_in():
+            print(f"[ok] Logged in to ChatGPT using the session from {name}.")
+            return 0
+        shot = STATE_DIR / "login-failed.png"
+        with contextlib.suppress(Exception):
+            chat.page.screenshot(path=str(shot))
+        print("❌ Cookies imported, but ChatGPT still shows logged out.", file=sys.stderr)
+        print(f"   Screenshot: {shot}", file=sys.stderr)
+        return 1
+    finally:
+        worker.stop()
 
 
 def _verify_login(cfg) -> int:
@@ -106,8 +157,9 @@ def _verify_login(cfg) -> int:
                 "\n".join(
                     [
                         '   Google refused the sign-in ("This browser or app may not be secure").',
-                        "   Use email + password instead: on the ChatGPT login page choose",
-                        '   "Continue with email" / "Log in with password". If your account was',
+                        "   Easiest fix — copy the session from your everyday browser:",
+                        "      benedict login --import",
+                        "   Or use email + password on the ChatGPT login page. If the account was",
                         '   created with Google, use "Forgot password" once to set a password,',
                         "   then retry `benedict login`.",
                     ]
@@ -268,7 +320,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("run", help="run the daemon in the foreground")
-    sub.add_parser("login", help="open a visible browser to log in to ChatGPT")
+    login = sub.add_parser("login", help="open a visible browser to log in to ChatGPT")
+    login.add_argument(
+        "--import",
+        dest="import_cookies",
+        action="store_true",
+        help="copy the ChatGPT session from your everyday browser",
+    )
+    login.add_argument(
+        "--browser",
+        choices=["brave", "chrome", "chromium", "edge", "vivaldi"],
+        help="source browser for --import",
+    )
     sub.add_parser("probe", help="dump ChatGPT page controls for selector debugging")
     sub.add_parser("doctor", help="check system prerequisites")
     sub.add_parser("last", help="print the last transcript")
