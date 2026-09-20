@@ -1,40 +1,77 @@
 .benedict-pill {
-    background-color: rgba(18, 18, 20, 0.92);
-    border-radius: 999px;
-    padding: 8px 18px;
-    spacing: 10px;
-    color: #ffffff;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    background-color: rgba(22, 24, 28, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 24px;
+    padding: 11px 22px 12px;
+    spacing: 4px;
+    color: #c9d1d9;
+    font-family: monospace;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.benedict-row {
+    spacing: 16px;
+}
+
+.benedict-transcript-row {
+    spacing: 4px;
 }
 
 .benedict-dot {
-    width: 10px;
-    height: 10px;
+    width: 9px;
+    height: 9px;
     border-radius: 999px;
     background-color: #9aa0a6;
 }
 
 .benedict-label {
-    font-weight: bold;
+    color: #7ee787;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.benedict-mic {
+    color: #8b949e;
+    font-size: 11px;
 }
 
 .benedict-transcript {
-    color: rgba(255, 255, 255, 0.7);
-    max-width: 520px;
+    color: #c9d1d9;
+    font-size: 13px;
+}
+
+.benedict-caret {
+    width: 8px;
+    height: 14px;
+    margin-left: 2px;
+    background-color: #7ee787;
 }
 
 .benedict-warming .benedict-dot {
     background-color: #f5a623;
 }
 
+.benedict-warming .benedict-label {
+    color: #f5a623;
+}
+
 .benedict-recording .benedict-dot {
-    background-color: #ff4d4f;
+    background-color: #7ee787;
+    box-shadow: 0 0 0 4px rgba(126, 231, 135, 0.15);
 }
 
 .benedict-done .benedict-dot {
-    background-color: #34c759;
+    background-color: #3fb950;
+}
+
+.benedict-done .benedict-label {
+    color: #3fb950;
 }
 
 .benedict-error .benedict-dot {
     background-color: #ff4d4f;
+}
+
+.benedict-error .benedict-label {
+    color: #ff4d4f;
 }
