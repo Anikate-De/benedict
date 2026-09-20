@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      body,
+      .stage {
+        width: 1000px;
+        height: 780px;
+      }
+      .window {
+        width: 940px;
+      }
+      .cfg {
+        display: flex;
+        align-items: baseline;
+      }
+      .cfg .k {
+        flex: 0 0 30ch;
+        color: var(--text);
+      }
+      .cfg .v {
+        color: var(--muted);
+      }
+      .cfg.ui .k {
+        color: var(--accent);
+      }
+      .cfg.ui .v {
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="window">
+        <div class="titlebar">
+          <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+          <div class="title">benedict — zsh</div>
+        </div>
+        <div class="body">
+          <div class="line"><span class="green">$</span> benedict config</div>
+          <div class="line muted"># /home/anikate/.config/benedict/config.toml</div>
+          <div class="line">&nbsp;</div>
+          <div class="cfg"><span class="k">hotkey.key</span><span class="v">f24</span></div>
+          <div class="cfg"><span class="k">hotkey.hint</span><span class="v">RightCtrl+Space</span></div>
+          <div class="cfg"><span class="k">hotkey.max_duration_sec</span><span class="v">600</span></div>
+          <div class="cfg"><span class="k">browser.chrome</span><span class="v">/usr/bin/google-chrome</span></div>
+          <div class="cfg"><span class="k">browser.profile</span><span class="v">~/.local/share/benedict/chrome</span></div>
+          <div class="cfg"><span class="k">browser.display</span><span class="v">:99</span></div>
+          <div class="cfg"><span class="k">browser.idle_shutdown_minutes</span><span class="v">30</span></div>
+          <div class="cfg"><span class="k">browser.prewarm</span><span class="v">True</span></div>
+          <div class="cfg"><span class="k">browser.mic</span><span class="v">default</span></div>
+          <div class="cfg"><span class="k">insert.method</span><span class="v">paste</span></div>
+          <div class="cfg"><span class="k">insert.paste_combo</span><span class="v">ctrl+v</span></div>
+          <div class="cfg"><span class="k">insert.terminal_combo</span><span class="v">ctrl+shift+v</span></div>
+          <div class="cfg"><span class="k">insert.universal_combo</span><span class="v">shift+insert</span></div>
+          <div class="cfg"><span class="k">insert.newline</span><span class="v">space</span></div>
+          <div class="cfg"><span class="k">insert.restore_clipboard</span><span class="v">True</span></div>
+          <div class="cfg ui"><span class="k">ui.notifications</span><span class="v">True</span></div>
+          <div class="cfg ui"><span class="k">ui.sounds</span><span class="v">True</span></div>
+          <div class="cfg ui"><span class="k">ui.pill</span><span class="v">True</span></div>
+          <div class="cfg ui"><span class="k">ui.pill_position</span><span class="v">bottom-center</span></div>
+          <div class="cfg ui"><span class="k">ui.pill_margin</span><span class="v">48</span></div>
+          <div class="cfg ui"><span class="k">ui.notify_while_pill</span><span class="v">True</span></div>
+          <div class="line">&nbsp;</div>
+          <div class="line"><span class="green">$</span> <span class="caret"></span></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
