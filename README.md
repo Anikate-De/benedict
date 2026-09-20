@@ -1,8 +1,16 @@
 # Benedict
 
+[![CI](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Anikate-De/benedict?label=version&sort=semver)](https://github.com/Anikate-De/benedict/releases)
+[![Coverage](https://raw.githubusercontent.com/Anikate-De/benedict/badges/coverage.svg)](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml)
+[![Tests](https://raw.githubusercontent.com/Anikate-De/benedict/badges/tests.svg)](https://github.com/Anikate-De/benedict/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20GNOME-lightgrey)](#requirements)
+
 Push-to-talk dictation for Linux using ChatGPT's web dictation as the speech-to-text engine.
 
-Hold `RightCtrl+Space` anywhere, speak, release. Benedict drives a hidden Chrome instance (Xvfb) that is logged into `chatgpt.com`, starts ChatGPT's dictation, and when you release it pastes the transcript at your cursor. A notification shows the state and the active microphone.
+Hold `RightCtrl+Space` anywhere, speak, release. Benedict drives a hidden Chrome instance (Xvfb) that is logged into `chatgpt.com`, starts ChatGPT's dictation, and when you release it pastes the transcript at your cursor. A floating status pill shows the live state, the active microphone, and the transcript as it forms — and a notification mirrors the same.
 
 ## Motivation
 
@@ -20,7 +28,7 @@ benedictd (systemd --user)
   └── wl-copy + ydotool paste          (Ctrl+V, or Ctrl+Shift+V in terminals)
 ```
 
-A small GNOME Shell extension (`benedict-focus@benedict`) publishes the focused window class to `$XDG_RUNTIME_DIR/benedict-focus` so Benedict can choose `Ctrl+V` vs the terminal paste combo, and renders a floating status pill (bottom center) with live state, the active microphone, and the streaming transcript. If the extension is unavailable, it falls back to `Shift+Insert` and desktop notifications.
+A small GNOME Shell extension (`benedict-focus@benedict`) publishes the focused window class to `$XDG_RUNTIME_DIR/benedict-focus` so Benedict can choose `Ctrl+V` vs the terminal paste combo, and draws the floating pill: a green dot with `Listening`, the active microphone on the right, and the streaming transcript underneath with a blinking caret. Other states read `Starting dictation…`, `Transcribing…`, `Inserting…`, `Pasted N words`, or the error message. Its position, edge margin, and visibility come from `[ui]` in the config. If the extension is unavailable, Benedict falls back to `Shift+Insert` and desktop notifications.
 
 Nothing is ever sent as a chat message; the dictation text is read from the composer and the composer is cleared after each use. Transcripts are stored in `~/.local/state/benedict/last.txt` and `history.jsonl`.
 
@@ -51,15 +59,17 @@ systemctl --user enable --now ydotoold benedict
 benedict test-hotkey           # hold RightCtrl+Space, expect press/release events
 ```
 
-No re-login is required. The GNOME focus extension loads on your next login; until then paste uses the `Shift+Insert` fallback.
+Input access needs no re-login (the udev ACLs apply live). The GNOME extension itself loads on your next login, and after any extension update GNOME Shell only picks up the new code in a new session — until then paste uses the `Shift+Insert` fallback and the pill may be stale or missing.
 
 ## Usage
 
 | Action | Result |
 |---|---|
 | Hold `RightCtrl+Space`, speak, release | Transcript is pasted at the cursor |
-| `benedict doctor` | Diagnose missing pieces |
+| `benedict doctor` | Diagnose missing pieces with a 9-point checklist |
 | `benedict status` | Print the daemon's current state as JSON |
+| `benedict config` | Show effective settings (`--edit` opens the config file) |
+| `benedict pill` | Play a short demo of the status pill |
 | `benedict probe` | Dump ChatGPT page controls (when OpenAI changes the UI) |
 | `benedict last` | Print the last transcript |
 | `journalctl --user -u benedict -f` | Follow logs |
@@ -93,8 +103,12 @@ newline = "space"          # space | shift+enter | literal
 restore_clipboard = true
 
 [ui]
-notifications = true
+notifications = true       # desktop notifications
 sounds = true
+pill = true                # floating status pill (GNOME extension)
+pill_position = "bottom-center"  # bottom-center | bottom-right | top-center | top-right
+pill_margin = 48           # px from screen edges (bottom placements also clear the dock)
+notify_while_pill = true   # keep notifications while the pill is visible
 ```
 
 Change the hotkey in `/etc/keyd/default.conf`. The default uses a layer instead of a chord, so there is no timing window and RightCtrl keeps working as Ctrl:
@@ -119,7 +133,8 @@ On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya relo
 - **Google sign-in says "This browser or app may not be secure"** — Google refuses OAuth in the dedicated Benedict profile. Copy the session from a browser where you are already logged in: `benedict login --import` (stop the daemon first). Alternatively sign in with email + password; if the account was created through Google, use "Forgot password" once to set a password.
 - **Dictation button not found** — OpenAI changed the UI. Run `benedict probe` and update `MIC_SELECTORS`/`STOP_SELECTORS` in `src/benedict/chatgpt.py`, then reinstall: `uv tool install --editable .`
 - **No mic audio** — verify the mic shown in the notification; set `browser.mic` to a PipeWire `node.name` from `wpctl status`.
-- **Pasting does nothing or pastes the wrong thing** — check the `[warn] focus tracking` line from `benedict doctor`; enable the extension with `gnome-extensions enable benedict-focus@benedict`, or set `insert.method = "type"` to type the transcript instead of pasting.
+- **Pasting does nothing or pastes the wrong thing** — check the `focus tracking` row in `benedict doctor`; enable the extension with `gnome-extensions enable benedict-focus@benedict`, or set `insert.method = "type"` to type the transcript instead of pasting.
+- **No pill, or it sits in the top-left corner** — the extension is outdated or not loaded. Reinstall it with `sudo ./scripts/setup.sh`, then log out and back in (GNOME Shell only reloads extension code on a new session). Verify with `benedict doctor` and preview it with `benedict pill`.
 - **ydotool errors** — `systemctl --user status ydotoold`; the socket is `$XDG_RUNTIME_DIR/.ydotool_socket`.
 
 ## Uninstall
@@ -135,6 +150,13 @@ rm -rf ~/.local/share/benedict ~/.local/state/benedict
 gnome-extensions disable benedict-focus@benedict
 rm -rf ~/.local/share/gnome-shell/extensions/benedict-focus@benedict
 ```
+
+## Version history
+
+See [CHANGELOG.md](CHANGELOG.md) for the full history.
+
+- **v0.2** — floating status pill with live state, the active microphone, and the streaming transcript with a blinking caret; configurable position; notifications mirror the pill (`Listening` + microphone, `Pasted N words` + paste method); `benedict doctor` is now a colored 9-point checklist; new `[ui]` settings, `benedict config`, and `benedict pill`; fixed the pill rendering in the top-left corner on GNOME 50.
+- **v0.1** — first release: hold-to-talk via keyd, hidden Chrome + ChatGPT dictation, focus-aware paste (`Ctrl+V`, `Ctrl+Shift+V`, `Shift+Insert`), clipboard restore, transcript history, sound cues, and notifications.
 
 ## Notes and limitations
 
