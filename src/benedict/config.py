@@ -22,6 +22,7 @@ DEFAULT_TERMINALS = [
 class HotkeyCfg:
     mode: str = "hold"
     key: str = "f24"
+    hint: str = "RightCtrl+Space"
     max_duration_sec: int = 600
 
 

@@ -74,7 +74,8 @@ uses the `Shift+Insert` fallback.
 ```toml
 [hotkey]
 mode = "hold"              # reserved; hold-to-talk
-key = "f24"                # key emitted by the keyd chord
+key = "f24"                # key emitted by keyd
+hint = "RightCtrl+Space"   # shown in notifications
 max_duration_sec = 600
 
 [browser]
@@ -98,9 +99,20 @@ notifications = true
 sounds = true
 ```
 
-Change the hotkey chord in `/etc/keyd/default.conf`, for example to `f10+space = f24`.
+Change the hotkey in `/etc/keyd/default.conf`. The default uses a layer instead of a chord, so
+there is no timing window and RightCtrl keeps working as Ctrl:
+
+```
+[main]
+rightcontrol = layer(dictation)
+
+[dictation:C]
+space = f24
+```
+
 On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya reload` and inspect
-errors with `journalctl -u keyd -n 20`. If a modifier chord does not activate, use `f10+space`.
+errors with `journalctl -u keyd -n 20`. After changing the chord, update `hotkey.hint` in the
+Benedict config.
 
 ## Troubleshooting
 

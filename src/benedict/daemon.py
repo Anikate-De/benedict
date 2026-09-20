@@ -4,7 +4,6 @@ import contextlib
 import logging
 import threading
 import time
-from pathlib import Path
 
 from benedict.browser import BrowserWorker
 from benedict.chatgpt import DictationFailed, DictationUnavailable
@@ -15,17 +14,6 @@ from benedict.notify import Notifier
 from benedict.state import State
 
 log = logging.getLogger("benedict")
-
-
-def chord_hint(key: str) -> str:
-    try:
-        for line in Path("/etc/keyd/default.conf").read_text().splitlines():
-            left, _, right = line.partition("=")
-            if right.strip() == key:
-                return left.strip()
-    except OSError:
-        pass
-    return key
 
 
 class Daemon:
@@ -50,7 +38,7 @@ class Daemon:
         self._listener = HotkeyListener(self.cfg.hotkey.key, self._press.set, self._release.set)
         self._listener.start()
         log.info("listening for %s", self.cfg.hotkey.key)
-        self.notifier.done("Benedict ready", f"hold {chord_hint(self.cfg.hotkey.key)} to dictate")
+        self.notifier.done("Benedict ready", f"hold {self.cfg.hotkey.hint} to dictate")
         try:
             while True:
                 if self._press.wait(timeout=5):
