@@ -57,8 +57,8 @@ class Daemon:
         self.notifier.status("Starting dictation…")
         try:
             chat = self.browser.chat()
-            if not chat.is_logged_in():
-                raise DictationUnavailable("not logged in — run `benedict login`")
+            if not chat.has_composer():
+                raise DictationUnavailable("chat composer not found — run `benedict login`")
             if not chat.start(self._release.is_set):
                 chat.clear()
                 self.notifier.done("Dictation cancelled")

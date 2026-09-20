@@ -42,18 +42,20 @@ sudo ./scripts/setup.sh
 ```
 
 The script installs `xvfb`, `keyd`, `wl-clipboard`, `libnotify-bin`, installs the keyd chord
-config, grants uinput access, adds you to the `input` group, and installs the `ydotoold` and
-`benedict` user services.
+config, grants live input access via udev `uaccess` ACLs (`input` group is added only as a
+fallback), and installs the `ydotoold` and `benedict` user services.
 
 Then:
 
 ```bash
-# log out and back in (input group + udev rule), then:
 benedict doctor                # verify everything
 benedict login                 # log in to ChatGPT once, close the window
 systemctl --user enable --now ydotoold benedict
 benedict test-hotkey           # hold RightCtrl+Space, expect press/release events
 ```
+
+No re-login is required. The GNOME focus extension loads on your next login; until then paste
+uses the `Shift+Insert` fallback.
 
 ## Usage
 
@@ -102,8 +104,11 @@ errors with `journalctl -u keyd -n 20`. If a modifier chord does not activate, u
 
 ## Troubleshooting
 
-- **`benedict doctor` fails on `keyboard access`** — you must log out and back in after being
-  added to the `input` group.
+- **`benedict doctor` fails on `keyboard access`** — the udev ACLs are missing; run
+  `sudo ./scripts/setup.sh` again. As a fallback, adding yourself to the `input` group and
+  logging back in also works.
+- **`keyd` ignores the chord** — restart keyd (`sudo systemctl restart keyd`) so it recreates
+  its virtual keyboard with ACLs, or re-run setup.
 - **Hotkey does nothing** — check `benedict test-hotkey`; if no events, run
   `journalctl -u keyd -n 20` and confirm the chord in `/etc/keyd/default.conf`, then
   `sudo keyd.rvaiya reload`.
@@ -113,6 +118,10 @@ errors with `journalctl -u keyd -n 20`. If a modifier chord does not activate, u
   (`Preferences: Open Keyboard Shortcuts`, search `triggerSuggest`).
 - **"not logged in" notification** — run `benedict login` (stop the daemon first:
   `systemctl --user stop benedict`).
+- **Google sign-in says "This browser or app may not be secure"** — Google refuses OAuth in
+  the dedicated Benedict profile. Sign in with **email + password** instead; if the account was
+  created through Google, use "Forgot password" once to set a password, then run
+  `benedict login` again.
 - **Dictation button not found** — OpenAI changed the UI. Run `benedict probe` and update
   `MIC_SELECTORS`/`STOP_SELECTORS` in `src/benedict/chatgpt.py`, then reinstall:
   `uv tool install --editable .`
@@ -130,8 +139,10 @@ errors with `journalctl -u keyd -n 20`. If a modifier chord does not activate, u
 ```bash
 systemctl --user disable --now benedict ydotoold
 uv tool uninstall benedict
-sudo rm /etc/keyd/default.conf /etc/udev/rules.d/99-benedict-uinput.rules \
-        /etc/systemd/user/ydotoold.service
+sudo rm /etc/keyd/default.conf /etc/udev/rules.d/70-benedict-input.rules \
+        /etc/udev/rules.d/99-benedict-uinput.rules \
+        "$HOME/.config/systemd/user/ydotoold.service" \
+        "$HOME/.config/systemd/user/benedict.service"
 rm -rf ~/.local/share/benedict ~/.local/state/benedict
 gnome-extensions disable benedict-focus@benedict
 rm -rf ~/.local/share/gnome-shell/extensions/benedict-focus@benedict

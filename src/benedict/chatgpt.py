@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import re
 import time
 from collections.abc import Callable
 
@@ -9,17 +10,16 @@ from playwright.sync_api import Locator, Page
 COMPOSER_SELECTORS = (
     "#prompt-textarea",
     "div[contenteditable='true']",
+    "textarea",
 )
 MIC_SELECTORS = (
-    "[data-testid='composer-speech-button']",
-    "button[aria-label*='dictate' i]",
+    "button[aria-label*='start dictation' i]",
     "button[aria-label*='dictation' i]",
-    "button[aria-label*='voice input' i]",
 )
 STOP_SELECTORS = (
-    "[data-testid='composer-speech-button'][aria-label*='stop' i]",
     "button[aria-label*='stop dictation' i]",
     "button[aria-label*='stop recording' i]",
+    "button[aria-label*='cancel dictation' i]",
 )
 
 
@@ -57,28 +57,59 @@ class ChatGPT:
     def composer(self) -> Locator | None:
         return self._first(COMPOSER_SELECTORS)
 
-    def is_logged_in(self) -> bool:
+    def has_composer(self) -> bool:
         return self.composer() is not None
 
+    def is_logged_in(self, timeout_ms: int = 10000) -> bool:
+        deadline = time.monotonic() + timeout_ms / 1000
+        while True:
+            try:
+                profile = self.page.locator("[data-testid='accounts-profile-button']").first
+                if profile.count() and profile.is_visible():
+                    return True
+            except Exception:
+                pass
+            if time.monotonic() >= deadline:
+                return False
+            with contextlib.suppress(Exception):
+                self.page.wait_for_timeout(250)
+
     def mic_button(self) -> Locator | None:
-        return self._first(MIC_SELECTORS, timeout_ms=500, visible=True)
+        for selector in MIC_SELECTORS:
+            try:
+                locator = self.page.locator(selector).first
+                if locator.count() and locator.is_visible():
+                    label = (locator.get_attribute("aria-label") or "").lower()
+                    if "dictation" in label and "voice" not in label:
+                        return locator
+            except Exception:
+                continue
+        return None
+
+    def stop_button(self) -> Locator | None:
+        for selector in STOP_SELECTORS:
+            try:
+                locator = self.page.locator(selector).first
+                if locator.count() and locator.is_visible():
+                    return locator
+            except Exception:
+                continue
+        return None
 
     def transcript(self) -> str:
         composer = self.composer()
         if composer is None:
             return ""
         try:
+            if composer.evaluate("e => e.tagName.toLowerCase()") == "textarea":
+                return (composer.input_value() or "").strip()
             return composer.inner_text().strip()
         except Exception:
             return ""
 
     def is_recording(self) -> bool:
-        for selector in STOP_SELECTORS:
-            try:
-                if self.page.locator(selector).first.count():
-                    return True
-            except Exception:
-                continue
+        if self.stop_button() is not None:
+            return True
         mic = self.mic_button()
         if mic is None:
             return False
@@ -88,42 +119,46 @@ class ChatGPT:
             return False
         return "stop" in label or "recording" in label
 
-    def start(self, cancelled: Callable[[], bool], optimistic_after_ms: int = 2500) -> bool:
+    def start(self, cancelled: Callable[[], bool], timeout_s: float = 8) -> bool:
         if self.composer() is None:
-            raise DictationUnavailable("composer not found (logged out?)")
+            raise DictationUnavailable("chat composer not found (logged out?)")
         mic = self.mic_button()
         if mic is None:
             raise DictationUnavailable("dictation button not found; run `benedict probe`")
         mic.click()
-        started = time.monotonic()
-        deadline = started + 6
+        deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if cancelled():
                 self.abort()
                 return False
             if self.is_recording() or self.transcript():
                 return True
-            if time.monotonic() - started >= optimistic_after_ms / 1000:
-                return True
             self.page.wait_for_timeout(120)
+        if self._login_prompt_visible():
+            raise DictationUnavailable(
+                "ChatGPT requires login for dictation — run `benedict login`"
+            )
         raise DictationFailed("recording did not start")
 
+    def _login_prompt_visible(self) -> bool:
+        try:
+            return self.page.get_by_role(
+                "button", name=re.compile("log in|sign up", re.I)
+            ).first.is_visible(timeout=500)
+        except Exception:
+            return False
+
     def stop(self) -> None:
+        stop = self.stop_button()
+        if stop is not None:
+            with contextlib.suppress(Exception):
+                stop.click()
+                return
         mic = self.mic_button()
         if mic is not None:
-            try:
+            with contextlib.suppress(Exception):
                 mic.click()
                 return
-            except Exception:
-                pass
-        for selector in STOP_SELECTORS:
-            try:
-                locator = self.page.locator(selector).first
-                if locator.count():
-                    locator.click()
-                    return
-            except Exception:
-                continue
         with contextlib.suppress(Exception):
             self.page.keyboard.press("Escape")
 
@@ -149,9 +184,12 @@ class ChatGPT:
         composer = self.composer()
         try:
             if composer is not None:
-                composer.click()
-                self.page.keyboard.press("Control+A")
-                self.page.keyboard.press("Backspace")
+                if composer.evaluate("e => e.tagName.toLowerCase()") == "textarea":
+                    composer.fill("")
+                else:
+                    composer.click()
+                    self.page.keyboard.press("Control+A")
+                    self.page.keyboard.press("Backspace")
                 if self.transcript() in ("", "\n"):
                     return
         except Exception:

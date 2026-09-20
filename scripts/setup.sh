@@ -17,13 +17,15 @@ echo "==> installing system packages"
 apt-get update -qq
 apt-get install -y xvfb keyd wl-clipboard libnotify-bin
 
-echo "==> granting uinput access to the input group"
+echo "==> granting input access via udev uaccess ACLs"
 modprobe uinput || true
+install -m 644 "$REPO/udev/70-benedict-input.rules" /etc/udev/rules.d/70-benedict-input.rules
 install -m 644 "$REPO/udev/99-benedict-uinput.rules" /etc/udev/rules.d/99-benedict-uinput.rules
 udevadm control --reload-rules
-udevadm trigger --name-match=uinput || true
+udevadm trigger --action=change --subsystem-match=input
+udevadm trigger --action=change --name-match=uinput || true
 
-echo "==> adding $TARGET_USER to the input group"
+echo "==> adding $TARGET_USER to the input group as a fallback"
 usermod -aG input "$TARGET_USER"
 
 echo "==> installing GNOME Shell focus extension"
@@ -34,6 +36,7 @@ install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/gnome-extension/metadata
 runuser -u "$TARGET_USER" -- env HOME="$TARGET_HOME" XDG_RUNTIME_DIR="/run/user/$TARGET_UID" \
   DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
   gnome-extensions enable benedict-focus@benedict 2>/dev/null || true
+chown -R "$TARGET_ID" "$TARGET_HOME/.local/share/gnome-shell" 2>/dev/null || true
 
 echo "==> installing keyd chord config"
 install -d /etc/keyd
@@ -86,12 +89,12 @@ install -m 644 -o "$TARGET_UID" -g "$TARGET_GID" "$REPO/systemd/benedict.service
 cat <<EOF
 
 Setup complete. Next steps:
-  1. Log out and back in (input group + udev rule + shell extension).
-  2. benedict doctor
-  3. benedict login        # log in to ChatGPT once, then close the window
-  4. systemctl --user enable --now ydotoold benedict
-  5. benedict test-hotkey  # hold RightCtrl+Space, expect press/release events
+  1. benedict doctor
+  2. benedict login        # log in to ChatGPT once, then close the window
+  3. systemctl --user enable --now ydotoold benedict
+  4. benedict test-hotkey  # hold RightCtrl+Space, expect press/release events
 
-If the focus extension did not activate, enable it after logging back in:
-  gnome-extensions enable benedict-focus@benedict
+Input access is granted live through udev uaccess ACLs, so no re-login is needed.
+The GNOME focus extension loads on your next login; until then paste falls back to
+Shift+Insert, which works in both terminals and GUI apps.
 EOF

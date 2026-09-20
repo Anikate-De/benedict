@@ -97,9 +97,24 @@ def _verify_login(cfg) -> int:
         shot = STATE_DIR / "login-failed.png"
         with contextlib.suppress(Exception):
             chat.page.screenshot(path=str(shot))
-        print("❌ Not logged in — no ChatGPT composer found.", file=sys.stderr)
+        page_text = ""
+        with contextlib.suppress(Exception):
+            page_text = chat.page.inner_text("body").lower()
+        print("❌ Not logged in — no ChatGPT profile menu found.", file=sys.stderr)
+        if "may not be secure" in page_text:
+            print(
+                "\n".join(
+                    [
+                        '   Google refused the sign-in ("This browser or app may not be secure").',
+                        "   Use email + password instead: on the ChatGPT login page choose",
+                        '   "Continue with email" / "Log in with password". If your account was',
+                        '   created with Google, use "Forgot password" once to set a password,',
+                        "   then retry `benedict login`.",
+                    ]
+                ),
+                file=sys.stderr,
+            )
         print(f"   Screenshot: {shot}", file=sys.stderr)
-        print("   Run `benedict login` again and finish the sign-in process.", file=sys.stderr)
         return 1
     except Exception as exc:
         print(f"❌ Verification failed: {exc}", file=sys.stderr)
@@ -153,15 +168,6 @@ def cmd_test_hotkey(args: argparse.Namespace) -> int:
     for name, when in events:
         print(f"[ok]   {name} at {when:.2f}")
     return 0
-
-
-def _groups() -> set[str]:
-    try:
-        import grp
-
-        return {grp.getgrgid(gid).gr_name for gid in os.getgroups()}
-    except (ImportError, KeyError):
-        return set()
 
 
 def _service_active(name: str) -> bool:
@@ -236,8 +242,7 @@ def cmd_doctor(_args: argparse.Namespace) -> int:
         _keyd_chord(cfg.hotkey.key),
         "install /etc/keyd/default.conf via scripts/setup.sh",
     )
-    check("input group", "input" in _groups(), "sudo usermod -aG input $USER then log out/in")
-    check("keyboard access", _can_read_keyboard(), "log out/in after joining the input group")
+    check("keyboard access", _can_read_keyboard(), "run scripts/setup.sh (udev rule)")
     mic_name, mic_desc = default_source()
     check("microphone", bool(mic_name), "no default source from wpctl")
     check("chatgpt profile", Path(cfg.browser.profile).exists(), "run: benedict login")

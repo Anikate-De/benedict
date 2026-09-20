@@ -14,7 +14,7 @@ class FakeChat:
         self.stopped = False
         self.cleared = False
 
-    def is_logged_in(self):
+    def has_composer(self):
         return True
 
     def start(self, cancelled):
