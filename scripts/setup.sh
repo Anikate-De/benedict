@@ -41,11 +41,15 @@ if [[ -f /etc/keyd/default.conf ]]; then
   cp /etc/keyd/default.conf "/etc/keyd/default.conf.bak.$(date +%s)"
 fi
 install -m 644 "$REPO/keyd/default.conf" /etc/keyd/default.conf
-if keyd check >/dev/null 2>&1; then
-  systemctl enable --now keyd
-  keyd reload || true
+KEYD_BIN="$(command -v keyd.rvaiya || command -v keyd || true)"
+systemctl enable --now keyd
+if [[ -n "$KEYD_BIN" ]]; then
+  "$KEYD_BIN" reload || true
 else
-  echo "WARNING: keyd rejected the config, inspect with: sudo keyd check" >&2
+  echo "WARNING: keyd binary not found" >&2
+fi
+if ! systemctl is-active --quiet keyd; then
+  echo "WARNING: keyd is not running, see: journalctl -u keyd -n 20" >&2
 fi
 
 echo "==> installing ydotoold user service"

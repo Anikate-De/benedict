@@ -97,14 +97,16 @@ sounds = true
 ```
 
 Change the hotkey chord in `/etc/keyd/default.conf`, for example to `f10+space = f24`.
-If `keyd check` rejects a modifier chord, use `f10+space`. Run `sudo keyd reload` afterwards.
+On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya reload` and inspect
+errors with `journalctl -u keyd -n 20`. If a modifier chord does not activate, use `f10+space`.
 
 ## Troubleshooting
 
 - **`benedict doctor` fails on `keyboard access`** — you must log out and back in after being
   added to the `input` group.
-- **Hotkey does nothing** — check `benedict test-hotkey`; if no events, run `sudo keyd check`,
-  `sudo systemctl status keyd`, and confirm the chord in `/etc/keyd/default.conf`.
+- **Hotkey does nothing** — check `benedict test-hotkey`; if no events, run
+  `journalctl -u keyd -n 20` and confirm the chord in `/etc/keyd/default.conf`, then
+  `sudo keyd.rvaiya reload`.
 - **VS Code inline suggestions** — VS Code cannot distinguish left and right Ctrl, and
   `Ctrl+Space` opens suggestions. Since keyd swallows the chord only when both keys land
   within 60 ms, a slow press can still reach VS Code. Rebind or remove `Ctrl+Space` in VS Code

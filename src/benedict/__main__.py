@@ -148,6 +148,13 @@ def _ydotoold_socket() -> bool:
     return bool(runtime) and Path(runtime, ".ydotool_socket").exists()
 
 
+def _keyd_chord(key: str) -> bool:
+    try:
+        return f"= {key}" in Path("/etc/keyd/default.conf").read_text()
+    except OSError:
+        return False
+
+
 def _can_read_keyboard() -> bool:
     try:
         from evdev import InputDevice, ecodes, list_devices
@@ -189,6 +196,11 @@ def cmd_doctor(_args: argparse.Namespace) -> int:
         "systemctl --user enable --now ydotoold",
     )
     check("keyd", _service_active("keyd"), "run scripts/setup.sh")
+    check(
+        "keyd chord",
+        _keyd_chord(cfg.hotkey.key),
+        "install /etc/keyd/default.conf via scripts/setup.sh",
+    )
     check("input group", "input" in _groups(), "sudo usermod -aG input $USER then log out/in")
     check("keyboard access", _can_read_keyboard(), "log out/in after joining the input group")
     mic_name, mic_desc = default_source()
