@@ -177,7 +177,15 @@ class Inserter:
         if shutil.which("wl-copy") is None:
             raise InsertError("wl-copy not found (install wl-clipboard)")
         try:
-            proc = subprocess.run(["wl-copy"], input=text.encode(), capture_output=True, timeout=5)
+            proc = subprocess.run(
+                ["wl-copy"],
+                input=text.encode(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise InsertError("wl-copy timed out") from exc
         except (OSError, subprocess.SubprocessError) as exc:
             raise InsertError(str(exc)) from exc
         if proc.returncode != 0:
@@ -185,7 +193,13 @@ class Inserter:
 
     def _restore_clipboard(self, text: str) -> None:
         with contextlib.suppress(OSError, subprocess.SubprocessError):
-            subprocess.run(["wl-copy"], input=text.encode(), capture_output=True, timeout=5)
+            subprocess.run(
+                ["wl-copy"],
+                input=text.encode(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
 
     def _focused_wm_class(self) -> str | None:
         now = time.monotonic()

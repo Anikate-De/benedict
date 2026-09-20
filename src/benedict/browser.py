@@ -4,6 +4,7 @@ import contextlib
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -15,6 +16,7 @@ from benedict.chatgpt import ChatGPT
 from benedict.config import BrowserCfg
 
 CHROME_ARGS = [
+    "--ozone-platform=x11",
     "--no-first-run",
     "--no-default-browser-check",
     "--use-fake-ui-for-media-stream",
@@ -80,11 +82,26 @@ class BrowserWorker:
         self._shutdown_browser()
         self._shutdown_display()
 
+    def _display_alive(self) -> bool:
+        path = f"/tmp/.X11-unix/X{self.cfg.display.lstrip(':')}"
+        if not Path(path).exists():
+            return False
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                sock.connect(path)
+            return True
+        except OSError:
+            return False
+
     def _start_display(self) -> None:
-        number = self.cfg.display.lstrip(":")
-        socket = Path(f"/tmp/.X11-unix/X{number}")
-        if socket.exists():
+        if self._display_alive():
             return
+        number = self.cfg.display.lstrip(":")
+        with contextlib.suppress(OSError):
+            Path(f"/tmp/.X11-unix/X{number}").unlink()
+        with contextlib.suppress(OSError):
+            Path(f"/tmp/.X{number}-lock").unlink()
         if shutil.which("Xvfb") is None:
             raise BrowserError("Xvfb not installed; run scripts/setup.sh")
         self._xvfb = subprocess.Popen(
@@ -94,7 +111,7 @@ class BrowserWorker:
         )
         deadline = time.monotonic() + 8
         while time.monotonic() < deadline:
-            if socket.exists():
+            if self._display_alive():
                 return
             if self._xvfb.poll() is not None:
                 raise BrowserError("Xvfb failed to start")
@@ -109,6 +126,8 @@ class BrowserWorker:
         self._clear_singleton(profile)
         env = os.environ.copy()
         env["DISPLAY"] = self.cfg.display
+        env.pop("WAYLAND_DISPLAY", None)
+        env.pop("WAYLAND_SOCKET", None)
         if self.cfg.mic != "default":
             env["PULSE_SOURCE"] = self.cfg.mic
         try:
