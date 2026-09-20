@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Mock ChatGPT</title></head>
+<body>
+<div id="prompt-textarea" contenteditable="true" role="textbox"></div>
+<button data-testid="composer-speech-button" aria-label="Dictate button">mic</button>
+<script>
+  const composer = document.getElementById('prompt-textarea');
+  const mic = document.querySelector('[data-testid="composer-speech-button"]');
+  let recording = false;
+  let timer = null;
+  let index = 0;
+  const words = ['hello', 'from', 'the', 'mock', 'dictation'];
+
+  mic.addEventListener('click', () => {
+    recording = !recording;
+    mic.setAttribute('aria-label', recording ? 'Stop dictation' : 'Dictate button');
+    if (recording) {
+      index = 0;
+      timer = setInterval(() => {
+        if (index >= words.length) return;
+        composer.textContent = (composer.textContent + ' ' + words[index]).trim();
+        index += 1;
+      }, 150);
+    } else {
+      clearInterval(timer);
+    }
+  });
+</script>
+</body>
+</html>
