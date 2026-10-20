@@ -34,7 +34,7 @@ benedictd (systemd --user)
 
 A small GNOME Shell extension (`benedict-focus@benedict`) publishes the focused window class to `$XDG_RUNTIME_DIR/benedict-focus` so Benedict can choose `Ctrl+V` vs the terminal paste combo, and draws the floating pill: a green dot with `Listening`, the active microphone on the right, and the streaming transcript underneath with a blinking caret. Other states read `Starting dictation…`, `Transcribing…`, `Inserting…`, `Pasted N words`, or the error message. Its position, edge margin, and visibility come from `[ui]` in the config. If the extension is unavailable, Benedict falls back to `Shift+Insert` and desktop notifications.
 
-Nothing is ever sent as a chat message; the dictation text is read from the composer and the composer is cleared after each use. Transcripts are stored in `~/.local/state/benedict/last.txt` and `history.jsonl`.
+Nothing is ever sent as a chat message; the dictation text is read from the composer and the composer is cleared after each use. The last 10 transcripts are kept in `~/.local/state/benedict/history.jsonl` (and the newest in `last.txt`).
 
 ## Requirements
 
@@ -70,12 +70,15 @@ Input access needs no re-login (the udev ACLs apply live). The GNOME extension i
 | Action | Result |
 |---|---|
 | Hold `RightCtrl+Space`, speak, release | Transcript is pasted at the cursor |
-| `benedict doctor` | Diagnose missing pieces with a 9-point checklist |
+| `RightCtrl+H` | Pick one of the last 10 transcripts to paste again (`Enter` = newest, `1`–`9`/`0`, `Esc`) |
+| `benedict doctor` | Diagnose missing pieces, including a live ChatGPT connection check |
 | `benedict status` | Print the daemon's current state as JSON |
 | `benedict config` | Show effective settings (`--edit` opens the config file) |
 | `benedict pill` | Play a short demo of the status pill |
 | `benedict probe` | Dump ChatGPT page controls (when OpenAI changes the UI) |
 | `benedict last` | Print the last transcript |
+| `benedict history` | List the last 10 transcripts, newest first |
+| `benedict paste [N]` | Paste transcript `N` from the history at the cursor (default: newest) |
 | `man benedict` | Read the manual page |
 | `journalctl --user -u benedict -f` | Follow logs |
 
@@ -124,9 +127,10 @@ rightcontrol = layer(dictation)
 
 [dictation:C]
 space = f24
+h = f23
 ```
 
-On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya reload` and inspect errors with `journalctl -u keyd -n 20`. After changing the chord, update `hotkey.hint` in the Benedict config.
+On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya reload` and inspect errors with `journalctl -u keyd -n 20`. After changing a chord, update `hotkey.hint` / `hotkey.history_hint` (and `hotkey.history_key` if you map the picker to another key) in the Benedict config.
 
 ## Troubleshooting
 
@@ -134,8 +138,8 @@ On Ubuntu the binary is `keyd.rvaiya`: apply changes with `sudo keyd.rvaiya relo
 - **`keyd` ignores the chord** — restart keyd (`sudo systemctl restart keyd`) so it recreates its virtual keyboard with ACLs, or re-run setup.
 - **Hotkey does nothing** — check `benedict test-hotkey`; if no events, run `journalctl -u keyd -n 20` and confirm the chord in `/etc/keyd/default.conf`, then `sudo keyd.rvaiya reload`.
 - **VS Code inline suggestions** — VS Code cannot distinguish left and right Ctrl, and `Ctrl+Space` opens suggestions. Since keyd swallows the chord only when both keys land within 60 ms, a slow press can still reach VS Code. Rebind or remove `Ctrl+Space` in VS Code (`Preferences: Open Keyboard Shortcuts`, search `triggerSuggest`).
-- **"not logged in" notification** — run `benedict login` (stop the daemon first: `systemctl --user stop benedict`).
-- **Google sign-in says "This browser or app may not be secure"** — Google refuses OAuth in the dedicated Benedict profile. Copy the session from a browser where you are already logged in: `benedict login --import` (stop the daemon first). Alternatively sign in with email + password; if the account was created through Google, use "Forgot password" once to set a password.
+- **"ChatGPT needs a login" notification** — click **Log in** on it: a Chrome window opens, sign in if asked, then close it. From a terminal, `benedict login` does the same (it pauses the service for you). Benedict first tries to get past Cloudflare's browser check by itself, so this should be rare.
+- **Google sign-in says "This browser or app may not be secure"** — Google refuses OAuth in the dedicated Benedict profile. Copy the session from a browser where you are already logged in: `benedict login --import` Alternatively sign in with email + password; if the account was created through Google, use "Forgot password" once to set a password.
 - **Dictation button not found** — OpenAI changed the UI. Run `benedict probe` and update `MIC_SELECTORS`/`STOP_SELECTORS` in `src/benedict/chatgpt.py`, then reinstall: `uv tool install --editable .`
 - **No mic audio** — verify the mic shown in the notification; set `browser.mic` to a PipeWire `node.name` from `wpctl status`.
 - **Pasting does nothing or pastes the wrong thing** — check the `focus tracking` row in `benedict doctor`; enable the extension with `gnome-extensions enable benedict-focus@benedict`, or set `insert.method = "type"` to type the transcript instead of pasting.
@@ -161,6 +165,7 @@ rm -rf ~/.local/share/gnome-shell/extensions/benedict-focus@benedict
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history.
 
+- **v0.3** — survives reboots and long sleeps: the hidden browser no longer looks automated to Cloudflare and repairs its own clearance, failed pages reload, and the browser is refreshed after resume; a `RightCtrl+H` picker re-pastes any of the last 10 transcripts (`benedict history`, `benedict paste N`); a **Log in** notification replaces the terminal when ChatGPT needs a sign-in; `benedict doctor` checks the live ChatGPT connection; fixed a stuck recording after tapping the hotkey mid-transcription.
 - **v0.2.1** — project logo in the README and on the website, and a `benedict(1)` man page so `man benedict` explains the CLI.
 - **v0.2** — floating status pill with live state, the active microphone, and the streaming transcript with a blinking caret; configurable position; notifications mirror the pill (`Listening` + microphone, `Pasted N words` + paste method); `benedict doctor` is now a colored 9-point checklist; new `[ui]` settings, `benedict config`, and `benedict pill`; fixed the pill rendering in the top-left corner on GNOME 50.
 - **v0.1** — first release: hold-to-talk via keyd, hidden Chrome + ChatGPT dictation, focus-aware paste (`Ctrl+V`, `Ctrl+Shift+V`, `Shift+Insert`), clipboard restore, transcript history, sound cues, and notifications.

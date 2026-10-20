@@ -14,6 +14,7 @@ COMPOSER_SELECTORS = (
 )
 MIC_SELECTORS = (
     "button[aria-label*='start dictation' i]",
+    "button[aria-label='dictate' i]",
     "button[aria-label*='dictation' i]",
 )
 STOP_SELECTORS = (
@@ -21,6 +22,14 @@ STOP_SELECTORS = (
     "button[aria-label*='stop recording' i]",
     "button[aria-label*='cancel dictation' i]",
 )
+CHALLENGE_JS = """() => !!window._cf_chl_opt
+    || !!document.querySelector("iframe[src*='challenges.cloudflare.com']")
+    || document.title.startsWith("Just a moment")"""
+SESSION_JS = """async () => {
+    const response = await fetch("/api/auth/session", {credentials: "include"});
+    return response.ok && !!(await response.json()).user;
+}"""
+PROFILE_SELECTORS = "button[aria-label*='profile menu' i], [data-testid='accounts-profile-button']"
 
 
 class DictationUnavailable(RuntimeError):
@@ -28,6 +37,14 @@ class DictationUnavailable(RuntimeError):
 
 
 class DictationFailed(RuntimeError):
+    pass
+
+
+class LoginRequired(DictationUnavailable):
+    pass
+
+
+class CloudflareChallenge(LoginRequired):
     pass
 
 
@@ -60,11 +77,32 @@ class ChatGPT:
     def has_composer(self) -> bool:
         return self.composer() is not None
 
+    def challenged(self) -> bool:
+        try:
+            return bool(self.page.evaluate(CHALLENGE_JS))
+        except Exception:
+            return False
+
+    def wait_ready(self, timeout_s: float = 12) -> bool:
+        deadline = time.monotonic() + timeout_s
+        while True:
+            if self._first(COMPOSER_SELECTORS, timeout_ms=0) is not None:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            with contextlib.suppress(Exception):
+                self.page.wait_for_timeout(250)
+
     def is_logged_in(self, timeout_ms: int = 10000) -> bool:
         deadline = time.monotonic() + timeout_ms / 1000
         while True:
             try:
-                profile = self.page.locator("[data-testid='accounts-profile-button']").first
+                if self.page.evaluate(SESSION_JS):
+                    return True
+            except Exception:
+                pass
+            try:
+                profile = self.page.locator(PROFILE_SELECTORS).first
                 if profile.count() and profile.is_visible():
                     return True
             except Exception:
@@ -82,7 +120,7 @@ class ChatGPT:
                     locator = self.page.locator(selector).first
                     if locator.count() and locator.is_visible():
                         label = (locator.get_attribute("aria-label") or "").lower()
-                        if "dictation" in label and "voice" not in label:
+                        if "dictat" in label and "voice" not in label:
                             return locator
                 except Exception:
                     continue
@@ -139,13 +177,11 @@ class ChatGPT:
             if self.is_recording() or self.transcript():
                 return True
             self.page.wait_for_timeout(120)
-        if self._login_prompt_visible():
-            raise DictationUnavailable(
-                "ChatGPT requires login for dictation — run `benedict login`"
-            )
+        if self.login_prompt_visible():
+            raise LoginRequired("ChatGPT requires login for dictation")
         raise DictationFailed("recording did not start")
 
-    def _login_prompt_visible(self) -> bool:
+    def login_prompt_visible(self) -> bool:
         try:
             return self.page.get_by_role(
                 "button", name=re.compile("log in|sign up", re.I)

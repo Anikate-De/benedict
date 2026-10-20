@@ -5,7 +5,9 @@ import math
 import shutil
 import struct
 import subprocess
+import threading
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 APP = "Benedict"
@@ -81,6 +83,25 @@ class Notifier:
 
     def error(self, summary: str, body: str = "") -> None:
         self.show(summary, body, "dialog-error", timeout=8000)
+
+    def action(self, summary: str, body: str, label: str, callback: Callable[[], None]) -> bool:
+        """Show a notification whose button, or the banner itself, runs callback."""
+        if not self.enabled or shutil.which("notify-send") is None:
+            return False
+        args = ["notify-send", "-a", APP, "-i", "dialog-warning", "-u", "critical"]
+        # GNOME shows buttons only on an expanded banner; "default" fires on a plain click.
+        args += ["-A", f"default={label}", "-A", f"run={label}", summary, body]
+
+        def wait() -> None:
+            try:
+                proc = subprocess.run(args, capture_output=True, text=True)
+            except (OSError, subprocess.SubprocessError):
+                return
+            if {"default", "run"} & set(proc.stdout.split()):
+                callback()
+
+        threading.Thread(target=wait, daemon=True, name="notify-action").start()
+        return True
 
     def close(self) -> None:
         if self._id is None:

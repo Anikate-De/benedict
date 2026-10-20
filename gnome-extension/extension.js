@@ -4,6 +4,7 @@ import GLib from 'gi://GLib';
 import St from 'gi://St';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 
 const POLL_MS = 1000;
 const STALE_S = 300;
@@ -12,6 +13,9 @@ const CARET_MS = 500;
 const TRANSCRIPT_LIMIT = 72;
 const DEFAULT_MARGIN = 48;
 const DOCK_CLEARANCE = 64;
+const PICKER_FRESH_S = 5;
+const PICKER_TEXT_LIMIT = 90;
+const PASTE_DELAY_MS = 150;
 
 export default class BenedictExtension extends Extension {
     enable() {
@@ -60,6 +64,11 @@ export default class BenedictExtension extends Extension {
         }
         this._stopPulse();
         this._stopCaret();
+        this._closePicker();
+        if (this._pasteId) {
+            GLib.source_remove(this._pasteId);
+            this._pasteId = 0;
+        }
         if (this._pill) {
             this._pill.destroy();
             this._pill = null;
@@ -229,6 +238,124 @@ export default class BenedictExtension extends Extension {
             this._caret.opacity = 255;
     }
 
+    _hidePill() {
+        this._pill.hide();
+        this._setPulse(false);
+        this._setCaret(false);
+    }
+
+    _ago(ts) {
+        const seconds = Math.max(0, Math.floor(Date.now() / 1000 - (ts || 0)));
+        if (seconds >= 86400)
+            return `${Math.floor(seconds / 86400)}d`;
+        if (seconds >= 3600)
+            return `${Math.floor(seconds / 3600)}h`;
+        if (seconds >= 60)
+            return `${Math.floor(seconds / 60)}m`;
+        return 'now';
+    }
+
+    _oneLine(text) {
+        const flat = (text || '').replace(/\s+/g, ' ').trim();
+        return flat.length > PICKER_TEXT_LIMIT ? `${flat.slice(0, PICKER_TEXT_LIMIT)}…` : flat;
+    }
+
+    _openPicker(items) {
+        this._closePicker();
+        if (!items.length)
+            return;
+        const dialog = new ModalDialog.ModalDialog({styleClass: 'benedict-picker'});
+        dialog.contentLayout.add_child(new St.Label({
+            text: 'Recent transcripts',
+            style_class: 'benedict-picker-title',
+        }));
+        const rows = items.slice(0, 10).map((item, index) => {
+            const row = new St.Button({
+                style_class: 'benedict-picker-row',
+                can_focus: true,
+                reactive: true,
+                x_expand: true,
+            });
+            const box = new St.BoxLayout({x_expand: true});
+            box.add_child(new St.Label({
+                text: String((index + 1) % 10),
+                style_class: 'benedict-picker-key',
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            box.add_child(new St.Label({
+                text: this._oneLine(item.text),
+                style_class: 'benedict-picker-text',
+                x_expand: true,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            box.add_child(new St.Label({
+                text: this._ago(item.ts),
+                style_class: 'benedict-picker-age',
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            row.set_child(box);
+            row.connect('clicked', () => this._pick(index));
+            dialog.contentLayout.add_child(row);
+            return row;
+        });
+        dialog.contentLayout.add_child(new St.Label({
+            text: 'Enter paste · 1–9, 0 pick · Esc close',
+            style_class: 'benedict-picker-hint',
+        }));
+        dialog.addButton({
+            label: 'Cancel',
+            action: () => this._closePicker(),
+            key: Clutter.KEY_Escape,
+        });
+        dialog.connect('key-press-event', (actor, event) => {
+            const symbol = event.get_key_symbol();
+            let index = -1;
+            if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9)
+                index = symbol - Clutter.KEY_1;
+            else if (symbol >= Clutter.KEY_KP_1 && symbol <= Clutter.KEY_KP_9)
+                index = symbol - Clutter.KEY_KP_1;
+            else if (symbol === Clutter.KEY_0 || symbol === Clutter.KEY_KP_0)
+                index = 9;
+            if (index < 0 || index >= rows.length)
+                return Clutter.EVENT_PROPAGATE;
+            this._pick(index);
+            return Clutter.EVENT_STOP;
+        });
+        dialog.connect('closed', () => {
+            if (this._picker === dialog)
+                this._picker = null;
+        });
+        dialog.setInitialKeyFocus(rows[0]);
+        this._picker = dialog;
+        dialog.open();
+    }
+
+    _closePicker() {
+        if (this._picker) {
+            const dialog = this._picker;
+            this._picker = null;
+            dialog.close();
+        }
+    }
+
+    _pick(index) {
+        this._closePicker();
+        // Let focus return to the window the transcript is pasted into.
+        if (this._pasteId)
+            GLib.source_remove(this._pasteId);
+        this._pasteId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, PASTE_DELAY_MS, () => {
+            this._pasteId = 0;
+            const benedict = GLib.find_program_in_path('benedict') ||
+                GLib.build_filenamev([GLib.get_home_dir(), '.local', 'bin', 'benedict']);
+            try {
+                Gio.Subprocess.new([benedict, 'paste', String(index + 1)], Gio.SubprocessFlags.NONE);
+            } catch (error) {
+                logError(error);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     _update() {
         let data = null;
         try {
@@ -237,6 +364,15 @@ export default class BenedictExtension extends Extension {
                 data = JSON.parse(new TextDecoder().decode(contents));
         } catch (error) {
             data = null;
+        }
+        if (data && data.state === 'history') {
+            this._hidePill();
+            const fresh = Date.now() / 1000 - data.ts < PICKER_FRESH_S;
+            if (fresh && data.ts !== this._pickerTs) {
+                this._pickerTs = data.ts;
+                this._openPicker(data.items || []);
+            }
+            return;
         }
         if (!data || !data.state || Date.now() / 1000 - data.ts > STALE_S) {
             this._pill.hide();
@@ -266,7 +402,7 @@ export default class BenedictExtension extends Extension {
             styleClass = 'benedict-warming';
             break;
         case 'starting':
-            text = 'Starting dictation…';
+            text = data.message || 'Starting dictation…';
             styleClass = 'benedict-warming';
             break;
         case 'recording':

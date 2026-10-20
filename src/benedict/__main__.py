@@ -30,16 +30,11 @@ def _setup_logging() -> None:
     )
 
 
-def _lock_handle():
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    return open(STATE_DIR / "run.lock", "w")
-
-
 def cmd_run(_args: argparse.Namespace) -> int:
     from benedict.daemon import Daemon
 
     _setup_logging()
-    handle = _lock_handle()
+    handle = status.lock_handle()
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -50,37 +45,39 @@ def cmd_run(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _ensure_stopped() -> bool:
-    handle = _lock_handle()
+def _systemctl(action: str) -> bool:
     try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(handle, fcntl.LOCK_UN)
-    except BlockingIOError:
-        print("stop benedict first: systemctl --user stop benedict", file=sys.stderr)
+        proc = subprocess.run(["systemctl", "--user", action, "benedict"], timeout=60)
+    except (OSError, subprocess.SubprocessError):
         return False
-    return True
+    return proc.returncode == 0
 
 
 def cmd_login(args: argparse.Namespace) -> int:
     cfg = load()
-    if not _ensure_stopped():
-        return 1
+    restart = False
+    if status.daemon_running():
+        print("Pausing the benedict service while you log in…")
+        if not _systemctl("stop") or status.daemon_running():
+            print("stop benedict first: systemctl --user stop benedict", file=sys.stderr)
+            return 1
+        restart = True
+    try:
+        return _login(cfg, args)
+    finally:
+        if restart:
+            print("Starting the benedict service again…")
+            _systemctl("start")
+
+
+def _login(cfg, args: argparse.Namespace) -> int:
     if args.import_cookies or args.browser:
         return cmd_import(cfg, args.browser)
-    Path(cfg.browser.profile).mkdir(parents=True, exist_ok=True)
+    from benedict.browser import BrowserWorker
+
     print("A Chrome window will open. Complete the ChatGPT login there.")
     print("Once you can see the message box where prompts are typed, close the window.")
-    subprocess.call(
-        [
-            cfg.browser.chrome,
-            f"--user-data-dir={cfg.browser.profile}",
-            "--no-first-run",
-            "--no-default-browser-check",
-            "--start-maximized",
-            "--password-store=basic",
-            cfg.browser.start_url,
-        ]
-    )
+    BrowserWorker(cfg.browser).open_login_window()
     return _verify_login(cfg)
 
 
@@ -195,6 +192,50 @@ def cmd_last(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _ago(ts: float) -> str:
+    seconds = max(0, int(time.time() - ts))
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if seconds >= size:
+            return f"{seconds // size}{unit} ago"
+    return "just now"
+
+
+def cmd_history(_args: argparse.Namespace) -> int:
+    from benedict.insert import read_history
+
+    items = read_history()
+    if not items:
+        print("no transcripts yet", file=sys.stderr)
+        return 1
+    for index, item in enumerate(items, 1):
+        print(f"{index:>2}  {_ago(item['ts']):>8}  {item['text']}")
+    return 0
+
+
+def cmd_paste(args: argparse.Namespace) -> int:
+    from benedict.insert import Inserter, InsertError, read_history
+
+    cfg = load()
+    items = read_history()
+    if not 1 <= args.index <= len(items):
+        print(f"no transcript #{args.index}; see `benedict history`", file=sys.stderr)
+        return 1
+    text = items[args.index - 1]["text"]
+    ui = {"pill": cfg.ui.pill, "position": cfg.ui.pill_position, "margin": cfg.ui.pill_margin}
+    try:
+        method = Inserter(cfg.insert).insert(text, remember=False)
+    except InsertError as exc:
+        print(f"paste failed: {exc}", file=sys.stderr)
+        status.write("error", ui=ui, message=str(exc)[:200])
+        return 1
+    status.write("inserted", ui=ui, words=len(text.split()), method=method)
+    # Give the clipboard restore timer time to run before the process exits.
+    time.sleep(2)
+    if status.read().get("state") == "inserted":
+        status.write("idle")
+    return 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     data = status.read()
     if not data:
@@ -261,6 +302,8 @@ def cmd_config(args: argparse.Namespace) -> int:
         ("hotkey.key", cfg.hotkey.key),
         ("hotkey.hint", cfg.hotkey.hint),
         ("hotkey.max_duration_sec", cfg.hotkey.max_duration_sec),
+        ("hotkey.history_key", cfg.hotkey.history_key),
+        ("hotkey.history_hint", cfg.hotkey.history_hint),
         ("browser.chrome", cfg.browser.chrome),
         ("browser.profile", cfg.browser.profile),
         ("browser.display", cfg.browser.display),
@@ -349,6 +392,9 @@ def main(argv: list[str] | None = None) -> int:
     pill.add_argument("--position", choices=list(PILL_POSITIONS), help="override the pill position")
     pill.add_argument("--force", action="store_true", help="run even if the daemon looks busy")
     sub.add_parser("last", help="print the last transcript")
+    sub.add_parser("history", help="list the last 10 transcripts, newest first")
+    paste = sub.add_parser("paste", help="paste a saved transcript at the focused window")
+    paste.add_argument("index", type=int, nargs="?", default=1, help="1 is the newest")
     sub.add_parser("status", help="print the daemon's current state")
     test = sub.add_parser("test-hotkey", help="wait for the hotkey chord and report events")
     test.add_argument("--seconds", type=int, default=10)
@@ -362,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
         "config": cmd_config,
         "pill": cmd_pill,
         "last": cmd_last,
+        "history": cmd_history,
+        "paste": cmd_paste,
         "status": cmd_status,
         "test-hotkey": cmd_test_hotkey,
     }

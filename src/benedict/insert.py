@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 import threading
@@ -15,6 +16,7 @@ from benedict.status import FOCUS_FILE
 
 MODIFIERS = {"ctrl": 29, "shift": 42, "alt": 56, "meta": 125}
 SHIFT_ENTER = "\x01"
+HISTORY_LIMIT = 10
 log = logging.getLogger("benedict")
 
 
@@ -113,7 +115,7 @@ class Inserter:
         self._focus_cache: tuple[float, str | None] = (0.0, None)
         self._restore_timer: threading.Timer | None = None
 
-    def insert(self, text: str) -> str:
+    def insert(self, text: str, remember: bool = True) -> str:
         text = normalize_newlines(text.strip(), self.cfg.newline)
         if not text:
             raise InsertError("empty transcript")
@@ -122,7 +124,8 @@ class Inserter:
             method = "type"
         else:
             method = self._paste(text)
-        self._save_last(text)
+        if remember:
+            self._save_last(text)
         return method
 
     def _paste(self, text: str) -> str:
@@ -234,12 +237,37 @@ class Inserter:
         return self._focus_cache[1]
 
     def _save_last(self, text: str) -> None:
+        save_transcript(text)
+
+
+def save_transcript(text: str) -> None:
+    record = json.dumps({"ts": int(time.time()), "text": text})
+    with contextlib.suppress(OSError):
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        (STATE_DIR / "last.txt").write_text(text + "\n")
+        path = STATE_DIR / "history.jsonl"
+        lines: list[str] = []
         with contextlib.suppress(OSError):
-            STATE_DIR.mkdir(parents=True, exist_ok=True)
-            (STATE_DIR / "last.txt").write_text(text + "\n")
-            with (STATE_DIR / "history.jsonl").open("a") as handle:
-                record = {"ts": int(time.time()), "text": text}
-                handle.write(json.dumps(record) + "\n")
+            lines = [line for line in path.read_text().splitlines() if line.strip()]
+        lines = [*lines, record][-HISTORY_LIMIT:]
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text("\n".join(lines) + "\n")
+        os.replace(tmp, path)
+
+
+def read_history() -> list[dict]:
+    """Saved transcripts, newest first."""
+    try:
+        lines = (STATE_DIR / "history.jsonl").read_text().splitlines()
+    except OSError:
+        return []
+    items: list[dict] = []
+    for line in reversed(lines[-HISTORY_LIMIT:]):
+        with contextlib.suppress(ValueError, TypeError):
+            record = json.loads(line)
+            if isinstance(record, dict) and record.get("text"):
+                items.append({"ts": int(record.get("ts", 0)), "text": str(record["text"])})
+    return items
 
 
 def read_last() -> str:
