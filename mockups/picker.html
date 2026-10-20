@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      body,
+      .stage {
+        width: 1280px;
+        height: 800px;
+      }
+      .stage {
+        display: block;
+      }
+      .center .window {
+        width: 760px;
+      }
+      .shade {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+      }
+      .picker {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 640px;
+        padding: 24px 22px 20px;
+        background: #36363a;
+        border-radius: 20px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+        font-family: "Ubuntu Sans", "Cantarell", sans-serif;
+        color: #f2f2f2;
+      }
+      .picker h3 {
+        margin: 0 0 14px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 14.5px;
+      }
+      .item.sel {
+        background: rgba(126, 231, 135, 0.16);
+      }
+      .item .key {
+        width: 14px;
+        color: var(--accent);
+        font-family: var(--mono);
+      }
+      .item .text {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .item .age {
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .hint {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .cancel {
+        margin-top: 16px;
+        padding: 11px 0;
+        text-align: center;
+        font-weight: 700;
+        font-size: 14px;
+        background: #48484c;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage desktop">
+      <div class="center">
+        <div class="window">
+          <div class="titlebar">
+            <div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div>
+            <div class="title">user@bench: ~</div>
+          </div>
+          <div class="body">
+            <div class="line"><span class="green">$</span> git commit -m "<span class="caret"></span></div>
+            <div class="line">&nbsp;</div>
+            <div class="line">&nbsp;</div>
+          </div>
+        </div>
+      </div>
+      <div class="shade"></div>
+      <div class="picker">
+        <h3>Recent transcripts</h3>
+        <div class="item sel"><span class="key">1</span><span class="text">Can you push the release notes to the team channel before five?</span><span class="age">2m</span></div>
+        <div class="item"><span class="key">2</span><span class="text">Fix the pill so it clears the dock in the bottom-right placement too.</span><span class="age">9m</span></div>
+        <div class="item"><span class="key">3</span><span class="text">Looks good to me, ship it once the tests are green.</span><span class="age">24m</span></div>
+        <div class="item"><span class="key">4</span><span class="text">Remind me to rotate the staging database password on Friday.</span><span class="age">41m</span></div>
+        <div class="item"><span class="key">5</span><span class="text">Let's move the retro to Thursday afternoon, same room.</span><span class="age">1h</span></div>
+        <div class="item"><span class="key">6</span><span class="text">Draft a short reply thanking them for the quick turnaround.</span><span class="age">2h</span></div>
+        <div class="item"><span class="key">7</span><span class="text">Add a test for the resume path before we merge.</span><span class="age">3h</span></div>
+        <div class="item"><span class="key">8</span><span class="text">The latency spike lines up with the cache eviction at noon.</span><span class="age">5h</span></div>
+        <div class="hint">Enter paste · 1–9, 0 pick · Esc close</div>
+        <div class="cancel">Cancel</div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -79,6 +79,12 @@
           <b>press</b> &rarr; <b>speak</b> &rarr; <b>release</b> &rarr;
           <b>pasted</b>
         </p>
+        <p>
+          Need something you said a few minutes ago? Press
+          <code>RightCtrl+H</code> and your last ten transcripts appear in a
+          small picker. <code>Enter</code> pastes the newest, a number key
+          picks any other, and <code>Esc</code> puts it away.
+        </p>
       </section>
 
       <section id="how">
@@ -94,7 +100,16 @@
         <p>
           Nothing you dictate is ever sent as a chat message, and the composer
           is cleared after every use. Audio only ever goes where ChatGPT's
-          dictation needs it; your transcripts stay on your machine.
+          dictation needs it; your transcripts stay on your machine, and only
+          the last ten are kept.
+        </p>
+        <p>
+          It looks after itself, too. After a reboot or a long sleep,
+          ChatGPT's bot check sometimes wants a second look at the hidden
+          browser; Benedict notices, clears it on its own, and carries on. If
+          a real sign-in is ever needed, a notification with a
+          <strong>Log in</strong> button takes care of it, so you never have
+          to open a terminal.
         </p>
       </section>
 
@@ -113,6 +128,17 @@
           <figcaption>
             Mid-sentence. The terminal stays where it is, and the pill streams
             the transcript as it forms.
+          </figcaption>
+        </figure>
+
+        <figure>
+          <img
+            src="assets/shot-picker.png"
+            alt="The RightCtrl+H picker listing recent transcripts, the newest one highlighted"
+          />
+          <figcaption>
+            <code>RightCtrl+H</code> brings back anything you said recently.
+            Enter pastes the newest; 1&ndash;9 and 0 pick the rest.
           </figcaption>
         </figure>
 
@@ -142,11 +168,12 @@
         <figure>
           <img
             src="assets/shot-doctor.png"
-            alt="Terminal output of benedict doctor showing all nine checks passing"
+            alt="Terminal output of benedict doctor showing all eleven checks passing"
           />
           <figcaption>
-            <code>benedict doctor</code> checks every moving part, so when
-            something breaks you find out in one command.
+            <code>benedict doctor</code> checks every moving part, down to
+            whether ChatGPT is actually reachable, so when something breaks
+            you find out in one command.
           </figcaption>
         </figure>
       </section>
@@ -179,6 +206,14 @@ sudo ./scripts/setup.sh</pre>
 
       <section id="roadmap">
         <h2>Roadmap</h2>
+        <p>
+          <strong>v0.3</strong> — it survives reboots and long sleeps: the
+          hidden browser repairs ChatGPT's bot check by itself and refreshes
+          after resume, a <strong>Log in</strong> notification replaces the
+          terminal when a sign-in is needed, <code>RightCtrl+H</code> re-pastes
+          any of your last ten transcripts, and <code>benedict doctor</code>
+          checks the live connection.
+        </p>
         <p>
           <strong>v0.2</strong> — the pill grows up: live state, the active
           microphone, the transcript streaming in with a blinking caret,
