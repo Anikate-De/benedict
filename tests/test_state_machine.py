@@ -12,6 +12,7 @@ from benedict.state import State
 @pytest.fixture(autouse=True)
 def _isolate_state(tmp_path, monkeypatch):
     monkeypatch.setattr(status, "STATE_FILE", tmp_path / "benedict-state.json")
+    monkeypatch.setattr(status, "HEALTH_FILE", tmp_path / "benedict-health.json")
     monkeypatch.setattr("benedict.daemon.FOCUS_FILE", tmp_path / "benedict-focus")
 
 
@@ -50,6 +51,9 @@ class FakeBrowser:
         self.running = False
 
     def chat(self):
+        return self._chat
+
+    def ready_chat(self, on_repair=None):
         return self._chat
 
     def mic_display(self):

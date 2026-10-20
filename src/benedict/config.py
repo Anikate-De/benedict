@@ -14,6 +14,8 @@ mode = "hold"              # reserved; hold-to-talk
 key = "f24"                # key emitted by keyd
 hint = "RightCtrl+Space"   # shown in notifications
 max_duration_sec = 600
+history_key = "f23"        # key emitted by keyd for the re-paste picker
+history_hint = "RightCtrl+H"
 
 [browser]
 chrome = "/usr/bin/google-chrome"
@@ -81,6 +83,8 @@ class HotkeyCfg:
     key: str = "f24"
     hint: str = "RightCtrl+Space"
     max_duration_sec: int = 600
+    history_key: str = "f23"
+    history_hint: str = "RightCtrl+H"
 
 
 @dataclass

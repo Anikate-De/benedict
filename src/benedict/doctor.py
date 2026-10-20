@@ -5,9 +5,11 @@ import shutil
 import socket
 import sqlite3
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from benedict import status
 from benedict.audio import default_source
 from benedict.config import Config
 from benedict.status import FOCUS_FILE
@@ -101,6 +103,32 @@ def _keyd_chord(key: str) -> tuple[bool, str]:
     return True, f"{key} via {style}"
 
 
+def _live_connection(cfg: Config) -> tuple[bool, str]:
+    from benedict.browser import BrowserWorker
+
+    worker = BrowserWorker(cfg.browser)
+    try:
+        chat = worker.ready_chat()
+        if not chat.is_logged_in():
+            return False, "logged out of ChatGPT"
+        return True, "connected (live check)"
+    except Exception as exc:
+        return False, str(exc)
+    finally:
+        worker.stop()
+
+
+def chatgpt_connection(cfg: Config, live=_live_connection) -> tuple[bool, str]:
+    if not status.daemon_running():
+        return live(cfg)
+    health = status.read_health()
+    if not health:
+        return False, "not checked yet; dictate once"
+    age = max(0, int(time.time() - health.get("ts", 0)))
+    when = f"{age // 60}m ago" if age >= 60 else "just now"
+    return bool(health.get("ok")), f"{health.get('detail', '')} ({when})"
+
+
 def run(cfg: Config) -> list[Check]:
     checks: list[Check] = []
 
@@ -112,6 +140,16 @@ def run(cfg: Config) -> list[Check]:
             chord_ok and keyd_ok,
             chord_detail or cfg.hotkey.key,
             "install /etc/keyd/default.conf and restart keyd: sudo ./scripts/setup.sh",
+        )
+    )
+
+    history_ok, history_detail = _keyd_chord(cfg.hotkey.history_key)
+    checks.append(
+        Check(
+            "history chord",
+            history_ok and keyd_ok,
+            history_detail or cfg.hotkey.history_key,
+            "sudo install -m 644 keyd/default.conf /etc/keyd/ && sudo keyd reload",
         )
     )
 
@@ -150,6 +188,16 @@ def run(cfg: Config) -> list[Check]:
             _session_cookie(profile),
             "logged in",
             "run: benedict login --import",
+        )
+    )
+
+    connected, detail = chatgpt_connection(cfg)
+    checks.append(
+        Check(
+            "ChatGPT connection",
+            connected,
+            detail,
+            f"{detail}; click Log in on the notification or run: benedict login",
         )
     )
 
@@ -212,9 +260,7 @@ def render(checks: list[Check], color: bool = False, width: int | None = None) -
         lines.append(line.rstrip())
     passed = sum(check.ok for check in checks)
     total = len(checks)
-    summary = (
-        f"{passed} checks passed" if passed == total else f"{passed} of {total} checks passed"
-    )
+    summary = f"{passed} checks passed" if passed == total else f"{passed} of {total} checks passed"
     lines.append("")
     lines.append(f"{(green if passed == total else red)}{summary}{reset}")
     return "\n".join(lines)

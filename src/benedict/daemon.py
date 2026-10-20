@@ -7,15 +7,18 @@ import time
 
 from benedict import status
 from benedict.browser import BrowserWorker
-from benedict.chatgpt import DictationFailed, DictationUnavailable
+from benedict.chatgpt import DictationFailed, DictationUnavailable, LoginRequired
 from benedict.config import Config
 from benedict.hotkey import HotkeyListener
-from benedict.insert import Inserter
+from benedict.insert import Inserter, read_history
 from benedict.notify import Notifier
 from benedict.state import State
 from benedict.status import FOCUS_FILE
 
 log = logging.getLogger("benedict")
+# The monotonic clock stops during suspend while wall time keeps running.
+RESUME_JUMP_SEC = 60
+RESUME_WARM_DELAY_SEC = 15
 
 
 def combo_label(method: str) -> str:
@@ -39,38 +42,162 @@ class Daemon:
         self.state = State.IDLE
         self._press = threading.Event()
         self._release = threading.Event()
+        self._history = threading.Event()
+        self._login = threading.Event()
+        self._wake = threading.Event()
         self._last_use = time.monotonic()
         self._listener: HotkeyListener | None = None
+        self._history_listener: HotkeyListener | None = None
         self._generation = 0
+        self._clock_offset = time.time() - time.monotonic()
+        self._warm_at: float | None = None
 
     def run(self) -> None:
-        self._listener = HotkeyListener(self.cfg.hotkey.key, self._press.set, self._release.set)
+        self._listener = HotkeyListener(self.cfg.hotkey.key, self._on_press, self._release.set)
         self._listener.start()
         log.info("listening for %s", self.cfg.hotkey.key)
+        try:
+            self._history_listener = HotkeyListener(
+                self.cfg.hotkey.history_key, self._on_history, lambda: None
+            )
+            self._history_listener.start()
+            log.info("history picker on %s", self.cfg.hotkey.history_key)
+        except Exception as exc:
+            self._history_listener = None
+            log.warning("history hotkey unavailable: %s", exc)
         if self._pill_active():
             self._transient_state("ready", 2.0, hint=self.cfg.hotkey.hint)
         else:
             self.notifier.done("Benedict ready", f"hold {self.cfg.hotkey.hint} to dictate")
         if self.cfg.browser.prewarm:
-            try:
-                chat = self.browser.chat()
-                chat.mic_button()
-                log.info("browser prewarmed")
-            except Exception as exc:
-                log.warning("prewarm failed: %s", exc)
+            self._prewarm()
         try:
             while True:
-                if self._press.wait(timeout=5):
-                    self._press.clear()
-                    self._session()
-                    self._release.clear()
-                else:
+                woke = self._wake.wait(timeout=5)
+                self._wake.clear()
+                if self._press.is_set():
+                    self._dictate()
+                if self._history.is_set():
+                    self._history.clear()
+                    self._show_history()
+                if self._login.is_set():
+                    self._login.clear()
+                    self._interactive_login()
+                if not woke:
+                    self._check_resume()
                     self._idle_shutdown()
         finally:
             self._set_state("idle")
             self._listener.stop()
+            if self._history_listener is not None:
+                self._history_listener.stop()
             self.browser.stop()
             self.notifier.close()
+
+    def _on_press(self) -> None:
+        self._press.set()
+        self._wake.set()
+
+    def _on_history(self) -> None:
+        self._history.set()
+        self._wake.set()
+
+    def _request_login(self) -> None:
+        self._login.set()
+        self._wake.set()
+
+    def _dictate(self) -> None:
+        self._press.clear()
+        self._session()
+        self._release.clear()
+        # A tap during finalizing leaves _press set after its release was consumed;
+        # only start another session if the key is still down.
+        if self._listener is None or not self._listener.held:
+            self._press.clear()
+
+    def _prewarm(self) -> None:
+        try:
+            self.browser.ready_chat().mic_button()
+            status.write_health(True, "connected")
+            log.info("browser prewarmed")
+        except Exception as exc:
+            log.warning("prewarm failed: %s", exc)
+            if isinstance(exc, DictationUnavailable):
+                status.write_health(False, str(exc))
+            if isinstance(exc, LoginRequired):
+                self._ask_login(str(exc))
+        self._last_use = time.monotonic()
+
+    def _ask_login(self, reason: str) -> str:
+        if self.notifier.action(
+            "ChatGPT needs a login",
+            f"{reason}. Click Log in to fix it.",
+            "Log in",
+            self._request_login,
+        ):
+            return f"{reason} — use Log in on the notification"
+        return f"{reason} — run `benedict login`"
+
+    def _interactive_login(self) -> None:
+        log.info("opening login window")
+        self._set_state("starting", message="Log in to ChatGPT, then close the window")
+        try:
+            self.browser.open_login_window()
+            logged_in = self.browser.ready_chat().is_logged_in()
+        except Exception as exc:
+            log.warning("login failed: %s", exc)
+            logged_in = False
+        self._press.clear()
+        self._release.clear()
+        self._last_use = time.monotonic()
+        if logged_in:
+            log.info("logged in")
+            status.write_health(True, "connected")
+            self._transient_state("ready", 2.0, hint=self.cfg.hotkey.hint)
+            self.notifier.done("Logged in to ChatGPT", f"hold {self.cfg.hotkey.hint} to dictate")
+            return
+        status.write_health(False, "still not logged in to ChatGPT")
+        message = self._ask_login("Still not logged in to ChatGPT")
+        self._transient_state("error", 4.0, message=message)
+
+    def _show_history(self) -> None:
+        items = read_history()
+        if not items:
+            self._transient_state("error", 2.0, message="No transcripts yet")
+            return
+        if self._pill_active():
+            log.info("history picker (%d items)", len(items))
+            self._set_state("history", items=items)
+            return
+        self.paste_history(1)
+
+    def paste_history(self, index: int) -> None:
+        items = read_history()
+        if not 1 <= index <= len(items):
+            self._transient_state("error", 2.0, message=f"No transcript #{index}")
+            return
+        text = items[index - 1]["text"]
+        try:
+            method = self.inserter.insert(text, remember=False) or "paste"
+        except Exception as exc:
+            log.warning("re-paste failed: %s", exc)
+            self._transient_state("error", 4.0, message=str(exc)[:200])
+            return
+        words = len(text.split())
+        log.info("re-pasted #%d (%d words) via %s", index, words, method)
+        self._transient_state("inserted", 1.5, words=words, method=method)
+
+    def _check_resume(self) -> None:
+        offset = time.time() - time.monotonic()
+        if offset - self._clock_offset > RESUME_JUMP_SEC:
+            log.info("resumed from sleep")
+            self.browser.stop()
+            if self.cfg.browser.prewarm:
+                self._warm_at = time.monotonic() + RESUME_WARM_DELAY_SEC
+        self._clock_offset = offset
+        if self._warm_at is not None and time.monotonic() >= self._warm_at:
+            self._warm_at = None
+            self._prewarm()
 
     def _pill_active(self) -> bool:
         return self.cfg.ui.pill and FOCUS_FILE.exists()
@@ -111,9 +238,10 @@ class Daemon:
             self.notifier.status("Starting dictation…")
         log.info("session start")
         try:
-            chat = self.browser.chat()
-            if not chat.has_composer():
-                raise DictationUnavailable("chat composer not found — run `benedict login`")
+            chat = self.browser.ready_chat(
+                on_repair=lambda message: self._set_state("starting", message=message)
+            )
+            status.write_health(True, "connected")
             if not chat.start(self._release.is_set):
                 chat.clear()
                 self._set_state("idle")
@@ -167,14 +295,23 @@ class Daemon:
         except Exception as exc:
             self.state = State.ERROR
             log.warning("session failed: %s", exc)
-            self._transient_state("error", 4.0, message=str(exc)[:200])
-            self.notifier.error("Dictation failed", str(exc)[:200])
+            message = str(exc)
+            if isinstance(exc, DictationUnavailable):
+                status.write_health(False, message)
+            if isinstance(exc, LoginRequired):
+                self.notifier.close()
+                message = self._ask_login(message)
+            else:
+                self.notifier.error("Dictation failed", message[:200])
+            self._transient_state("error", 4.0, message=message[:200])
             self.notifier.play("error")
-            with contextlib.suppress(Exception):
-                self.browser.chat().clear()
+            if not isinstance(exc, LoginRequired):
+                with contextlib.suppress(Exception):
+                    self.browser.chat().clear()
         finally:
             self.state = State.IDLE
             self._last_use = time.monotonic()
+            self._warm_at = None
 
     def _idle_shutdown(self) -> None:
         minutes = self.cfg.browser.idle_shutdown_minutes

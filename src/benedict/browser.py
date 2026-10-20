@@ -1,19 +1,23 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import shutil
 import signal
 import socket
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
 
 from benedict.audio import default_source
-from benedict.chatgpt import ChatGPT
+from benedict.chatgpt import ChatGPT, CloudflareChallenge, DictationUnavailable, LoginRequired
 from benedict.config import BrowserCfg
+
+log = logging.getLogger("benedict")
 
 CHROME_ARGS = [
     "--ozone-platform=x11",
@@ -27,8 +31,13 @@ CHROME_ARGS = [
     "--disable-renderer-backgrounding",
     "--disable-features=CalculateNativeWinOcclusion,Translate",
     "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
     "--window-size=1280,860",
 ]
+# Playwright's --enable-automation sets navigator.webdriver, which Cloudflare treats as a bot.
+IGNORED_DEFAULT_ARGS = ["--enable-automation"]
+# A plain Chrome (no CDP, no automation flags) passes Cloudflare's check within a few seconds.
+CLEARANCE_SECONDS = 10
 
 
 class BrowserError(RuntimeError):
@@ -60,6 +69,77 @@ class BrowserWorker:
         self._start_browser()
         assert self._chat is not None
         return self._chat
+
+    def ready_chat(self, on_repair: Callable[[str], None] | None = None) -> ChatGPT:
+        chat = self.chat()
+        if chat.wait_ready():
+            return chat
+        if chat.challenged():
+            log.info("cloudflare challenge; refreshing clearance in a plain chrome")
+            if on_repair:
+                on_repair("Reconnecting to ChatGPT…")
+            self.refresh_clearance()
+        else:
+            log.info("chatgpt not ready at %s; reloading", chat.page.url)
+            with contextlib.suppress(Exception):
+                chat.page.goto(self.cfg.start_url, wait_until="domcontentloaded")
+        chat = self.chat()
+        if chat.wait_ready():
+            return chat
+        if chat.challenged():
+            raise CloudflareChallenge("Cloudflare is blocking the hidden browser")
+        if chat.login_prompt_visible():
+            raise LoginRequired("logged out of ChatGPT")
+        raise DictationUnavailable("ChatGPT did not load (offline?)")
+
+    def refresh_clearance(self) -> None:
+        self._shutdown_browser()
+        self._start_display()
+        profile = Path(self.cfg.profile).resolve()
+        self._clear_singleton(profile)
+        proc = subprocess.Popen(
+            [
+                self.cfg.chrome,
+                f"--user-data-dir={profile}",
+                "--password-store=basic",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--ozone-platform=x11",
+                "--mute-audio",
+                "--window-size=1280,860",
+                self.cfg.start_url,
+            ],
+            env=self._env(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            proc.wait(timeout=CLEARANCE_SECONDS)
+        except subprocess.TimeoutExpired:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        self._kill_leftover_chrome(profile)
+
+    def open_login_window(self) -> int:
+        """Show ChatGPT in a visible Chrome on the desktop and wait for it to close."""
+        self._shutdown_browser()
+        profile = Path(self.cfg.profile).resolve()
+        profile.mkdir(parents=True, exist_ok=True)
+        self._clear_singleton(profile)
+        return subprocess.call(
+            [
+                self.cfg.chrome,
+                f"--user-data-dir={profile}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--start-maximized",
+                "--password-store=basic",
+                self.cfg.start_url,
+            ]
+        )
 
     def mic_display(self) -> str:
         if self.cfg.mic != "default":
@@ -124,20 +204,15 @@ class BrowserWorker:
         profile = Path(self.cfg.profile).resolve()
         profile.mkdir(parents=True, exist_ok=True)
         self._clear_singleton(profile)
-        env = os.environ.copy()
-        env["DISPLAY"] = self.cfg.display
-        env.pop("WAYLAND_DISPLAY", None)
-        env.pop("WAYLAND_SOCKET", None)
-        if self.cfg.mic != "default":
-            env["PULSE_SOURCE"] = self.cfg.mic
         try:
             self._playwright = sync_playwright().start()
             self._context = self._playwright.chromium.launch_persistent_context(
                 str(profile),
                 executable_path=self.cfg.chrome,
                 headless=False,
-                env=env,
+                env=self._env(),
                 args=CHROME_ARGS,
+                ignore_default_args=IGNORED_DEFAULT_ARGS,
                 viewport={"width": 1280, "height": 860},
                 timeout=45000,
             )
@@ -153,6 +228,15 @@ class BrowserWorker:
         if "chatgpt.com" not in self._page.url:
             self._page.goto(self.cfg.start_url, wait_until="domcontentloaded", timeout=30000)
         self._chat = ChatGPT(self._page)
+
+    def _env(self) -> dict[str, str]:
+        env = os.environ.copy()
+        env["DISPLAY"] = self.cfg.display
+        env.pop("WAYLAND_DISPLAY", None)
+        env.pop("WAYLAND_SOCKET", None)
+        if self.cfg.mic != "default":
+            env["PULSE_SOURCE"] = self.cfg.mic
+        return env
 
     def _profile_processes(self, profile: Path) -> list[int]:
         marker = f"--user-data-dir={profile}"

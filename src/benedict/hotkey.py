@@ -34,6 +34,10 @@ class HotkeyListener(threading.Thread):
             if self.keycode in keys:
                 self._devices.append(device)
 
+    @property
+    def held(self) -> bool:
+        return self._held
+
     def start(self) -> None:
         self._scan()
         if not self._devices:

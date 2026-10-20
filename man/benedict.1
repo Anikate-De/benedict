@@ -1,4 +1,4 @@
-.TH BENEDICT 1 "2026-09-21" "benedict 0.2.1" "User Commands"
+.TH BENEDICT 1 "2026-10-21" "benedict 0.3.0" "User Commands"
 .SH NAME
 benedict \- push-to-talk ChatGPT dictation for Linux
 .SH SYNOPSIS
@@ -61,6 +61,15 @@ Play a short demonstration of every status-pill state.
 .B last
 Print the most recent transcript.
 .TP
+.B history
+List the last 10 transcripts, newest first.
+.TP
+.BI paste " " \fR[\fIN\fR]
+Paste transcript
+.I N
+from the history (1 is the newest, the default) at the focused window.
+The GNOME extension runs this when a transcript is chosen in the RightCtrl+H picker.
+.TP
 .B status
 Print the daemon's current state as JSON.
 .TP
@@ -115,7 +124,7 @@ User configuration.
 All keys are optional.
 .TP
 .I ~/.local/state/benedict/
-Daemon state, logs, the last transcript, and the transcript history.
+Daemon state, logs, the last transcript, and the last 10 transcripts.
 .TP
 .I /etc/keyd/default.conf
 keyd configuration that maps the hotkey chord to F24.

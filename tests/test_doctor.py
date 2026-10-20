@@ -1,6 +1,8 @@
 import sqlite3
 
-from benedict.doctor import Check, _session_cookie, render
+from benedict import status
+from benedict.config import Config
+from benedict.doctor import Check, _session_cookie, chatgpt_connection, render
 
 
 def test_render_all_ok():
@@ -60,3 +62,18 @@ def test_session_cookie_absent(tmp_path):
         con.execute("CREATE TABLE cookies (host_key TEXT, name TEXT)")
         con.execute("INSERT INTO cookies VALUES ('example.com', 'sid')")
     assert not _session_cookie(tmp_path)
+
+
+def test_connection_live_when_daemon_stopped(monkeypatch):
+    monkeypatch.setattr(status, "daemon_running", lambda: False)
+    assert chatgpt_connection(Config(), live=lambda cfg: (True, "live")) == (True, "live")
+
+
+def test_connection_reads_daemon_health(tmp_path, monkeypatch):
+    monkeypatch.setattr(status, "daemon_running", lambda: True)
+    monkeypatch.setattr(status, "HEALTH_FILE", tmp_path / "health.json")
+    assert chatgpt_connection(Config(), live=None)[0] is False
+    status.write_health(False, "Cloudflare is blocking the hidden browser")
+    ok, detail = chatgpt_connection(Config(), live=None)
+    assert not ok
+    assert detail.startswith("Cloudflare is blocking")
